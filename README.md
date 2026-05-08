@@ -151,13 +151,18 @@ Wireshark filter `"eth.type == 0x80ab"`.
 ## File Transfer
 
 Experimental upload support can copy one file from Linux to the DOS current
-directory.  The first version is intentionally simple and requires the target
-DOS machine's MAC address:
+directory.  Load the current `cgaweb.com` TSR on the DOS machine normally; no
+special DOS-side flag is required for receiving files.  The first version is
+intentionally simple and requires the target DOS machine's MAC address:
 
 ```
 sudo ./rmtdos-cga-web-client -i enp2s0 -d 00:07:40:19:1a:4d \
   --put ./cga_demo.com CGA_DEMO.COM
 ```
+
+Successful upload from Linux to the DOS machine:
+
+![Successful file upload with --put](/images/cgaweb_put.png)
 
 File upload uses the same raw Ethernet transport as the remote screen session.
 DOS writes are processed from the DOS idle interrupt, so uploads work best while
@@ -165,6 +170,8 @@ the DOS machine is sitting at the command prompt or otherwise calling DOS idle.
 
 The current upload path is stop-and-wait, one file at a time, and the remote
 filename must fit in 63 characters.  Download support is not implemented yet.
+The `-d` option shown by `cgaweb.com -h` is a debug-overlay flag inherited from
+the original TSR code; normal builds do not need it.
 
 ## Possible Future Work
 
