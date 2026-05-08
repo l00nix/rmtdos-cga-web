@@ -17,7 +17,8 @@ a Linux system on the same LAN to remotely control the DOS system.
 There are two main programs, one that runs on DOS (`cgaweb.com`), and the other
 that runs on Linux (`rmtdos-cga-web-client`).  There is also a VGA text mode demo
 (`vga_demo.com`) program for testing VGA text video modes and displaying test
-patterns.
+patterns, and a CGA graphics mode demo (`cga_demo.com`) for testing the web
+graphics viewer.
 
 `cgaweb.com` ("server"):
 
@@ -94,7 +95,8 @@ Then select the client that you want to connect.
    16-bit x86 compiler, assembler, and linker.
 1. `make`
 1. `sudo make setcap` (optional, see https://stackoverflow.com/a/46466642).
-1. Copy `out/cgaweb.com` and `out/vga_demo.com` (optional) to a DOS system.
+1. Copy `out/cgaweb.com`, `out/cga_demo.com` (optional), and
+   `out/vga_demo.com` (optional) to a DOS system.
 
 There are some non-traditional makefile targets that I find handy during
 development:
@@ -179,6 +181,13 @@ A: Use `ALT-X` to exit `vga_demo.com`, and `ALT-V` to cycle its video mode.
 Those are DOS-side demo keys sent through the remote keyboard path; they do not
 exit the Linux client.  Use `CTRL-]` or `ALT-ESCAPE` only when you want to exit
 `rmtdos-cga-web-client` itself.
+
+Q: How do I test CGA graphics frames?
+
+A: Run `cga_demo.com` on the DOS machine while `cgaweb.com` is resident and the
+Linux client is running with `-w` or `-W`.  The demo cycles through BIOS CGA
+graphics modes `04h`, `05h`, and `06h`; press `M` to switch modes, `SPACE` to
+redraw the current pattern, and `X` or `ESC` to exit back to text mode.
 
 Q: How can I view the raw Ethernet traffic (tcpdump filter expression)?
 

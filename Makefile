@@ -28,10 +28,14 @@ RMTDOS_MAP=$(OUTDIR)/cgaweb.map
 VGADEMO_BIN=$(OUTDIR)/vga_demo.com
 VGADEMO_MAP=$(OUTDIR)/vga_demo.map
 
+# DOS Program to run CGA graphics mode tests.
+CGADEMO_BIN=$(OUTDIR)/cga_demo.com
+CGADEMO_MAP=$(OUTDIR)/cga_demo.map
+
 # Library of functions used in more than one 16-bit build target.
 LIB16_LIB=$(TMPDIR)/lib16.a
 
-all:	dirs $(CLIENT_BIN) $(RMTDOS_BIN) $(VGADEMO_BIN) list
+all:	dirs $(CLIENT_BIN) $(RMTDOS_BIN) $(VGADEMO_BIN) $(CGADEMO_BIN) list
 
 clean:
 	@rm -rf $(OUTDIR) $(TMPDIR)
@@ -107,3 +111,8 @@ bcclint:	src/common/*.h src/server/*.h src/server/*.c
 $(VGADEMO_BIN):	$(LIB16_LIB) src/vga_demo/*.c
 	$(BCC) -O -Isrc -ansi -0 -Md -o $@ $^
 	$(BCC) -O -Isrc -ansi -0 -Md -o $@ -M $^ > $(VGADEMO_MAP)
+
+# "cga_demo.com"
+$(CGADEMO_BIN):	$(LIB16_LIB) src/cga_demo/*.c
+	$(BCC) -O -Isrc -ansi -0 -Md -o $@ $^
+	$(BCC) -O -Isrc -ansi -0 -Md -o $@ -M $^ > $(CGADEMO_MAP)
