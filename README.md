@@ -86,8 +86,9 @@ The displayed columns are:
 
 Then select the client that you want to connect.
 
-![Client view](/images/live.png)
-![Another demo](/images/defrag.png)
+![Text-mode DOS remote session](/images/rmt_dos_screen.png)
+![CGA demo in the web viewer](/images/live.png)
+![Text remote session and CGA web viewer](/images/defrag.png)
 
 ## Building
 
