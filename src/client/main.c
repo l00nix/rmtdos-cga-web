@@ -86,7 +86,7 @@ void update_probing_window(const struct RawSocket *rs) {
             rs->ethertype);
   ++y;
   mvwprintw(w, y, 1, RMTDOS_VERSION);
-  mvwprintw(w, y, 50, "<ALT-ESC> to exit");
+  mvwprintw(w, y, 43, "<ALT-ESC>/<CTRL-]> to exit");
   ++y;
   mvwprintw(w, y, 1, "%s: %s", rs->if_name,
             fmt_mac_addr(mac_tmp, sizeof(mac_tmp), rs->if_addr));
@@ -269,7 +269,7 @@ void start_remote_control(struct RemoteHost *rh) {
 void process_stdin_menu_mode() {
   int c = getch();
 
-  if (c == EXIT_WCH_CODE || c == KEY_F(12) || c == 27) {
+  if (IS_EXIT_WCH_CODE(c) || c == KEY_F(12) || c == 27) {
     g_running = 0;
     return;
   }

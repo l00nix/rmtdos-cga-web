@@ -161,10 +161,12 @@ FreeDOS utility `fdimples.exe`).
 
 Q: How do I exit the client?
 
-A: Press `ALT-ESCAPE`.  The client sets ncurses to "raw" mode, so that the typical
-termios control characters (ex: `CTRL-C`) do NOT generate signals, but
-instead are presented to the client, so that the client can send them to
-the DOS end.
+A: Press `CTRL-]` or `ALT-ESCAPE`.  `CTRL-]` is useful when running the
+client over SSH from a Windows host, where `ALT-ESCAPE` is commonly captured
+by Windows to cycle open windows.  The client sets ncurses to "raw" mode, so
+that the typical termios control characters (ex: `CTRL-C`) do NOT generate
+signals, but instead are presented to the client, so that the client can send
+them to the DOS end.
 
 Q: How can I view the raw Ethernet traffic (tcpdump filter expression)?
 

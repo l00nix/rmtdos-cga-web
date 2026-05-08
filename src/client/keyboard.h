@@ -9,7 +9,10 @@
 #include "client/globals.h"
 #include "client/network.h"
 
-#define EXIT_WCH_CODE 0x9b /* ALT-ESCAPE */
+#define EXIT_ALT_ESC_WCH_CODE 0x9b       /* ALT-ESCAPE */
+#define EXIT_CTRL_RBRACKET_WCH_CODE 0x1d /* CTRL-] */
+#define IS_EXIT_WCH_CODE(wch) \
+  ((wch) == EXIT_ALT_ESC_WCH_CODE || (wch) == EXIT_CTRL_RBRACKET_WCH_CODE)
 
 // UI is in "session mode" (connected to a server).  Send the keystroke over
 // for server to inject it into the BIOS keyboard buffer.
