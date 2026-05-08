@@ -3,10 +3,11 @@
 Remotely control HP 200LX / CGA DOS systems from Linux, with an experimental
 browser-based graphics view.
 
-Tested on FreeDOS-1.3 in QEMU and on a real Pentium-MMX 166 MHz.
+Tested on a HP 200LX running MS-DOS 5 and a Linux machine with Ubuntu 24.04.4
+LTS.
 
 This project is a fork of Dennis Jenkins' original `rmtdos`
-(https://github.com/dennisjenkins75/rmtdos), adapted for HP 200LX-style CGA
+(https://github.com/dennisjenkins75/rmtdos), adapted for MS-DOS based CGA
 graphics capture and browser-based viewing.
 
 `rmtdos-cga-web` contains a DOS (FreeDOS or MSDOS or equivalent) TSR that allows
