@@ -86,8 +86,18 @@ The displayed columns are:
 
 Then select the client that you want to connect.
 
+Sample screenshot of the ncurses text-based remote DOS shell.
+
 ![Text-mode DOS remote session](/images/rmt_dos_screen.png)
+
+Split screen view of the remote DOS shell and the web session CGA output of
+`cga_demo.com`.
+
 ![CGA demo in the web viewer](/images/live.png)
+
+Split screen view of the remote DOS shell and the web session CGA output of the
+startup screen of Space Quest.
+
 ![Text remote session and CGA web viewer](/images/defrag.png)
 
 ## Building
@@ -114,154 +124,31 @@ development:
    Modern `gcc -Wall` can be much more strict and issue all kinds of warnings
    for bad coding practices.
 
-## Future Plans
+## Usage Notes
 
-1. Add mouse support.  DOS has
-   [int 33h](https://stanislavs.org/helppc/int_33.html) with lots of support
-   for setting the mouse's cursor position.
+Press `CTRL-]` or `ALT-ESCAPE` to exit `rmtdos-cga-web-client`.  `CTRL-]` is
+useful when running the client over SSH from a Windows host, where `ALT-ESCAPE`
+is commonly captured by Windows to cycle open windows.
 
-1. Possibly add remote file transfer capacilities (kind of like TFTP over raw
-   Ethernet, maybe with a Linux-side FUSE driver).
+Use `ALT-X` to exit `vga_demo.com`, and `ALT-V` to cycle its video mode.  Those
+are DOS-side demo keys sent through the remote keyboard path; they do not exit
+the Linux client.
 
-## FAQ
-
-Q: Why was this project developed using "dev86", which has poor support for
-modern C?
-
-A: I prefer to do development from my Linux system, and treat DOS as an embedded
-system that I can push binaries to.  So I needed a C compiler that can run on
-Linux and produce DOS real-mode programs.  GCC cannot do this.  I attempted and
-failed to get OpenWatcom 1.9 and 2.0 to compile cleanly on Gentoo Linux, so
-I used "dev86", which exists for both Linux and DOS.
-
-Q: Why did you use raw Ethernet packets and not TCP/IP or UDP?
-
-A: Memory overhead.  A primary design criteria was to keep the memory usage
-of the resident `cgaweb.com` program as small as possible.  Basically,
-there were four options for implementing full TCP/IP support, and each
-of them would have added serious developmental delays and RAM costs:
-
-1. [mTCP](https://www.brutman.com/mTCP/) - Would not work in TSR mode
-   without significant code changes.  mTCP assumes that it can issue DOS
-   file IO requests "whenever", and that is not compatible with a TSR that
-   does not want to bother switching out the DOS PSPs and such.
-
-1. Wattcp - Unmaintained, didn't even go there.
-
-1. TSR TCP/IP implementation - It wants 73K of RAM at runtime.
-
-1. Roll my own.  Um, no thanks.
-
-A: Compatibility with other mTCP programs.  mTCP tells the packet driver
-that it wants to register for ALL EtherTypes, but it only really uses
-"ARP" (0x0806) and "IPV4" (0x0800).  If `cgaweb.com` registers for the same,
-then the packet driver won't let any mTCP program successfully run.  Since
-`cgaweb.com` uses its own EtherType, both stacks can co-exist on the same
-packet driver and not require a packet multiplexor.
-
-Q: Can I build it on DOS?
-
-A: `cgaweb.com` and `vga_demo.com` might build there, but I've not bothered
-trying.  Currently, all 3 programs are built on Linux.  The DOS programs
-are built using ["dev86"](https://github.com/lkundrak/dev86).  FreeDOS ships
-with "dev86" (if it is not already installed, you can install it with the
-FreeDOS utility `fdimples.exe`).
-
-Q: How do I exit the client?
-
-A: Press `CTRL-]` or `ALT-ESCAPE`.  `CTRL-]` is useful when running the
-client over SSH from a Windows host, where `ALT-ESCAPE` is commonly captured
-by Windows to cycle open windows.  The client sets ncurses to "raw" mode, so
-that the typical termios control characters (ex: `CTRL-C`) do NOT generate
-signals, but instead are presented to the client, so that the client can send
-them to the DOS end.
-
-Q: How do I exit `vga_demo.com` or switch its video mode?
-
-A: Use `ALT-X` to exit `vga_demo.com`, and `ALT-V` to cycle its video mode.
-Those are DOS-side demo keys sent through the remote keyboard path; they do not
-exit the Linux client.  Use `CTRL-]` or `ALT-ESCAPE` only when you want to exit
-`rmtdos-cga-web-client` itself.
-
-Q: How do I test CGA graphics frames?
-
-A: Run `cga_demo.com` on the DOS machine while `cgaweb.com` is resident and the
-Linux client is running with `-w` or `-W`.  The demo cycles through BIOS CGA
-graphics modes `04h`, `05h`, and `06h`; press `M` to switch modes, `SPACE` to
-redraw the current pattern, and `X` or `ESC` to exit back to text mode.
+Run `cga_demo.com` on the DOS machine while `cgaweb.com` is resident and the
+Linux client is running with `-w` or `-W` to test CGA graphics frames.  The demo
+cycles through BIOS CGA graphics modes `04h`, `05h`, and `06h`; press `M` to
+switch modes, `SPACE` to redraw the current pattern, and `X` or `ESC` to exit
+back to text mode.
 
 The browser viewer renders modes `04h` and `05h` with classic CGA color
 palettes, and mode `06h` as black and white.  It does not currently capture
 dynamic CGA palette-register changes.
 
-Q: How can I view the raw Ethernet traffic (tcpdump filter expression)?
+To inspect the raw Ethernet traffic, use `tcpdump 'ether proto 0x80ab'` or the
+Wireshark filter `"eth.type == 0x80ab"`.
 
-A: `tcpdump 'ether proto 0x80ab'`
+## Possible Future Work
 
-A: (wireshark): `"eth.type == 0x80ab"`
-
-Q: My DOS system does not have a NIC, can I use a serial port?
-
-A: In theory, yes; but I've not tested this.  Connect the DOS system to your
-Linux system via "null-modem" cable.  On the DOS side, run the "CSLIP" packet
-driver.  On the Linux end, configure "cslip" on the serial TTY device.  This
-guide contains a step-by-step walkthrough:
-
-- https://mcmackins.org/stories/dos-slip.html
-
-Q: `cgaweb.com` is optimized for minimal memory usage.  How did you audit that?
-
-A: Well, its a goal.  I'm sure that there is always room for improvement.  I've
-been auditing the memory usage by examining the linker map via:
-
-- `make && sort -k3 out/cgaweb.map`
-
-And by using `debug.com` to peek at the TSR's private ISR (interrupt service
-routine) stack usage (to see if it is safe to shrink the ISR stacks).
-
-1. Build the software, examine the linker map:
-
-   ```make && sort -k3 out/cgaweb.map | grep "stack_"
-                   int08   _int08_stack_bottom  3  00003020  R
-                   int08      _int08_stack_top  3  00003220  R
-                   int2f   _int2f_stack_bottom  3  00003224  R
-                   int2f      _int2f_stack_top  3  000032a4  R
-                 pktrecv   pktdrv_stack_bottom  3  000032a8  r
-                 pktrecv      pktdrv_stack_top  3  000033a8  r
-   ```
-
-1. Then load `cgaweb.com` in DOS.  Observe the printed PSP value.
-
-1. Connect with the client from Linux.  This will cause `cgaweb.com` to start
-   using its ISR stacks.
-
-1. Run `debug.com`, and examine the RAM where the stacks are (example is
-   for `pktdrv_stack_bottom`:
-
-```
-C:\TEMP>cgaweb
-Packet Driver Initialized.  irq:0x60, NE2100, 82:00:00:00:00:09, et:80ab
-Going resident.  PSP:073b, Last Addr: 4c50
-
-C:\TEMP>debug
--d 073b:32a8
-073B:32A0                         -00 00 00 00 00 00 00 00         ........
-073B:32B0  00 00 00 00 00 00 00 00-00 00 00 00 00 00 00 00 ................
-073B:32C0  00 00 00 00 00 00 00 00-00 00 00 00 00 00 00 00 ................
-073B:32D0  00 00 00 00 00 00 00 00-00 00 00 00 00 00 00 00 ................
-073B:32E0  00 00 00 00 00 00 00 00-00 00 00 00 00 00 00 00 ................
-073B:32F0  00 00 00 00 00 00 00 00-00 00 00 00 00 00 00 00 ................
-073B:3300  00 00 00 00 00 00 00 00-00 00 00 00 00 00 00 00 ................
-073B:3310  00 00 00 00 00 00 00 00-00 00 00 00 00 00 00 00 ................
-073B:3320  00 00 00 00 00 00 00 00-                        ........
--d
-073B:3320                         -00 00 00 00 00 00 00 00         ........
-073B:3330  00 00 00 00 00 00 00 00-00 00 00 00 00 00 00 00 ................
-073B:3340  00 00 00 00 00 00 00 00-00 00 00 00 00 00 00 00 ................
-073B:3350  00 00 00 00 00 00 00 00-00 00 00 00 00 00 00 00 ................
-073B:3360  00 00 00 00 00 00 4E 3C-4E 3C 54 3C 90 3C 78 33 ......N<N<T<.<x3
-073B:3370  57 1E 54 3C 54 3C 90 3C-82 33 FD 2A 82 33 3B 07 W.T<T<.<.3.*.3;.
-073B:3380  82 33 01 00 40 01 3C 00-00 00 54 3C 90 3C 82 33 .3..@.<...T<.<.3
-073B:3390  82 33 00 00 3B 07 3B 07-3B 07 3B 07 3A 0A 00 00 .3..;.;.;.;.:...
-073B:33A0  C6 02 E6 00 64 0D 00 00-                        ....d...
-```
+A lightweight file-transfer mode over the same raw Ethernet transport should be
+feasible.  It would need chunking, checksums, retry/ack handling, and a DOS-side
+write path that stays careful about TSR memory use.
