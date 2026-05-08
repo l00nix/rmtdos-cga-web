@@ -502,7 +502,7 @@ void process_stdin_session_mode(struct RawSocket *rs) {
       abort();
   }
 
-  if (wch == EXIT_WCH_CODE) {
+  if (IS_EXIT_WCH_CODE(wch)) {
     g_running = 0;
     return;
   }

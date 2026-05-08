@@ -4,6 +4,9 @@ Remotely control DOS-based systems from Linux
 
 Tested on FreeDOS-1.3 in QEMU and on a real Pentium-MMX 166 MHz.
 
+This fork tracks the original `rmtdos` project by Dennis Jenkins:
+https://github.com/dennisjenkins75/rmtdos.
+
 "rmtdos" contains a DOS (FreeDOS or MSDOS or equivalent) TSR that allows a
 Linux system on the same LAN to remotely control the DOS system.
 
@@ -149,10 +152,11 @@ FreeDOS utility `fdimples.exe`).
 
 Q: How do I exit the client?
 
-A: Press `ALT-ESCAPE`.  The client sets ncurses to "raw" mode, so that the typical
-termios control characters (ex: `CTRL-C`) do NOT generate signals, but
-instead are presented to the client, so that the client can send them to
-the DOS end.
+A: Press `CTRL-]` or `ALT-ESCAPE`.  `CTRL-]` is useful when running the
+client over SSH from Windows, where `ALT-ESCAPE` is commonly intercepted by the
+local desktop.  The client sets ncurses to "raw" mode, so that the typical
+termios control characters (ex: `CTRL-C`) do NOT generate signals, but instead
+are presented to the client, so that the client can send them to the DOS end.
 
 Q: How can I view the raw Ethernet traffic (tcpdump filter expression)?
 
