@@ -151,11 +151,11 @@ void process_keyboard() {
 
   // Read raw scan code + ascii code.
   x86_reset_regs(&regs);
-  regs.w.ax = 0;
+  regs.u.w.ax = 0;
   x86_call(0x16, &regs);
 
   // User pressed "ALT-X", so exit.
-  switch (regs.w.ax) {
+  switch (regs.u.w.ax) {
     case 0x2d00: // ALT-X
       running = 0;
       return;
@@ -189,7 +189,7 @@ void process_keyboard() {
   for (i = 1; i < KEY_EVENT_HIST_SIZE; ++i) {
     key_events[i - 1] = key_events[i];
   }
-  key_events[--i] = regs.w.ax;
+  key_events[--i] = regs.u.w.ax;
 }
 
 int main(int argc, char *argv[]) {

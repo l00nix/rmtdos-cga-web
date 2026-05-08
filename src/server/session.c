@@ -22,6 +22,8 @@ static struct Session *g_session_eof = g_sessions + MAX_SESSIONS;
 static uint8_t null_if_addr[ETH_ALEN] = {0, 0, 0, 0, 0, 0};
 
 static uint16_t video_chksum = 0;
+static uint16_t cga_graphics_chksum = 0;
+static uint16_t cga_next_offset = 0;
 
 void session_mgr_init() { memset(&g_sessions, 0, sizeof(g_sessions)); }
 
@@ -81,6 +83,79 @@ void session_mgr_reclaim(struct Session *s) { memset(s, 0, sizeof(*s)); }
 
 void session_mgr_update(struct Session *s) {}
 
+static int is_cga_graphics_mode(uint8_t video_mode) {
+  return video_mode == 0x04 || video_mode == 0x05 || video_mode == 0x06;
+}
+
+static uint16_t cga_graphics_width(uint8_t video_mode) {
+  return video_mode == 0x06 ? 640 : 320;
+}
+
+static uint8_t cga_graphics_bpp(uint8_t video_mode) {
+  return video_mode == 0x06 ? 1 : 2;
+}
+
+static void session_mgr_send_cga_graphics(const struct VideoState *video) {
+  struct EthernetHeader *out_eh = (struct EthernetHeader *)(g_send_buffer);
+  struct ProtocolHeader *out_ph = (struct ProtocolHeader *)(out_eh + 1);
+  struct CgaGraphics *resp = (struct CgaGraphics *)(out_ph + 1);
+  uint8_t *video_data = (uint8_t *)(resp + 1);
+  struct Session *s;
+  uint16_t payload_len;
+  uint16_t offset;
+  uint16_t count;
+  uint16_t word_count;
+  uint16_t video_curr_chksum;
+
+  if (cga_next_offset >= CGA_GRAPHICS_FRAME_BYTES) {
+    cga_next_offset = 0;
+  }
+
+  if (cga_next_offset == 0) {
+    video_curr_chksum =
+        video_checksum_frame_buffer(0, CGA_GRAPHICS_FRAME_BYTES / VIDEO_WORD);
+    if (video_curr_chksum == cga_graphics_chksum) {
+      return;
+    }
+    cga_graphics_chksum = video_curr_chksum;
+  }
+
+  count = MAX_PAYLOAD_LENGTH - sizeof(struct CgaGraphics);
+  count &= 0xfffe;
+  if (count + cga_next_offset > CGA_GRAPHICS_FRAME_BYTES) {
+    count = CGA_GRAPHICS_FRAME_BYTES - cga_next_offset;
+  }
+
+  offset = cga_next_offset;
+  word_count = count / VIDEO_WORD;
+  payload_len = sizeof(struct CgaGraphics) + count;
+  cga_next_offset += count;
+
+  memcpy(out_eh->src_mac_addr, g_pktdrv_info.mac_addr, ETH_ALEN);
+  out_eh->ethertype = htons(g_ethertype);
+
+  out_ph->signature = htonl(PACKET_SIGNATURE);
+  out_ph->payload_len = htons(payload_len);
+  out_ph->pkt_type = htons(V1_CGA_GRAPHICS);
+
+  resp->video_mode = video->video_mode;
+  resp->bpp = cga_graphics_bpp(video->video_mode);
+  resp->width = htons(cga_graphics_width(video->video_mode));
+  resp->height = htons(200);
+  resp->offset = htons(offset);
+  resp->count = htons(count);
+
+  video_copy_from_frame_buffer(video_data, offset, word_count);
+
+  for (s = g_sessions; s < g_session_eof; ++s) {
+    if (!memcmp(s->mac_addr, null_if_addr, ETH_ALEN)) {
+      continue;
+    }
+    memcpy(out_eh->dest_mac_addr, s->mac_addr, ETH_ALEN);
+    out_ph->session_id = htonl(s->session_id);
+    pktdrv_send(g_send_buffer, COMBINED_HEADER_LEN + payload_len);
+  }
+}
 
 void session_mgr_update_all() {
   struct EthernetHeader *out_eh = (struct EthernetHeader *)(g_send_buffer);
@@ -116,12 +191,21 @@ void session_mgr_update_all() {
 
   if (!active_sessions) {
     video_next_row = 0;
+    cga_next_offset = 0;
     return;
   }
 
   // Determine next chunk of Video data to send to all clients.
   // Compute how many rows we can fit into a packet.
   video_read_state(&video);
+
+  if (is_cga_graphics_mode(video.video_mode)) {
+    video_next_row = 0;
+    session_mgr_send_cga_graphics(&video);
+    return;
+  }
+
+  cga_next_offset = 0;
 
 #if DEBUG
   video_printf(40, 20, 15, "video: %d %d %d %d    ;", video.video_mode,

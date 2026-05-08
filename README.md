@@ -41,6 +41,8 @@ patterns.
 1. Periodically sends a refresher packet to the server the user wants to
    "connect" to.
 1. Receives VGA text memory dumps, and renders them via `ncurses`.
+1. Experimental: run with `-w` to serve a browser-based CGA graphics view at
+   `http://127.0.0.1:8080/`.
 1. Run with `-h` to see usage and command line options.
 1. Run with `-u` to uninstall/unload the resident program.
 
@@ -55,6 +57,11 @@ to DOS.
 On Linux, run the client.  You might need to override the default ethernet
 device name.  Sadly, you'll need to run it as root since it needs
 to create a raw socket.  `sudo ./rmtdos-client -i br0`.
+
+For experimental HP 200LX-style CGA graphics viewing, run the client with
+`-w` and open `http://127.0.0.1:8080/` in a browser.  When connecting to the
+Linux machine over SSH, forward the port from Windows with
+`ssh -L 8080:127.0.0.1:8080 user@linux-host`.
 
 ![Client menu](/images/menu.png)
 

@@ -70,6 +70,10 @@ enum PKT_TYPE {
   // Client -> Server
   // Inserts keystroke into BIOS keyboard buffer.
   V1_INJECT_KEYSTROKE = 7,
+
+  // Server -> Client
+  // Contains raw CGA graphics framebuffer data.
+  V1_CGA_GRAPHICS = 8,
 };
 
 #if NEED_PRAGMA_PACK
@@ -127,6 +131,19 @@ struct VideoText {
   uint8_t cursor_col; // Current column of the cursor
   uint16_t offset;   // Byte offset from $b800:0
   uint16_t count;    // Count of BYTES of data in packet
+};
+
+#define CGA_GRAPHICS_FRAME_BYTES 16000
+
+// V1_CGA_GRAPHICS: Server -> Client
+// Followed by raw CGA framebuffer bytes, to end of packet.
+struct CgaGraphics {
+  uint8_t video_mode; // BIOS video mode: 04h, 05h, or 06h.
+  uint8_t bpp;        // Bits per pixel: 1 for mode 06h, 2 for modes 04h/05h.
+  uint16_t width;     // Pixel width, network byte order.
+  uint16_t height;    // Pixel height, network byte order.
+  uint16_t offset;    // Byte offset from $b800:0, network byte order.
+  uint16_t count;     // Count of BYTES in packet, network byte order.
 };
 
 // Bit flags for `Keystroke.flags`
