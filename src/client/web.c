@@ -167,16 +167,22 @@ int web_server_start(struct WebServer *server, const char *addr, int port) {
   sa.sin_port = htons(port);
   if (inet_pton(AF_INET, addr, &sa.sin_addr) != 1) {
     fprintf(stderr, "invalid web address: %s\n", addr);
+    close(server->listen_fd);
+    server->listen_fd = -1;
     return -1;
   }
 
   if (bind(server->listen_fd, (struct sockaddr *)&sa, sizeof(sa)) < 0) {
     perror("web bind");
+    close(server->listen_fd);
+    server->listen_fd = -1;
     return -1;
   }
 
   if (listen(server->listen_fd, 8) < 0) {
     perror("web listen");
+    close(server->listen_fd);
+    server->listen_fd = -1;
     return -1;
   }
 

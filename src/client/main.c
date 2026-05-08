@@ -45,6 +45,8 @@ enum AppMode {
 };
 
 static const int epoll_timeout_ms = 1000;
+static const char *DEFAULT_WEB_ADDR = "127.0.0.1";
+static const int DEFAULT_WEB_PORT = 8080;
 
 // How often to send a broadcast probe, looking for servers.
 static const struct timeval broadcast_probe_interval = {
@@ -68,6 +70,9 @@ int g_show_debug_window = 0;
 struct WebServer g_web_server = {.listen_fd = -1};
 
 static struct timeval g_last_probe = {0};
+static int g_enable_web = 0;
+static char g_web_addr[INET_ADDRSTRLEN] = "127.0.0.1";
+static int g_web_port = 8080;
 
 // Non-NULL if we're actively controlling a server.
 struct RemoteHost *g_active_host = NULL;
@@ -90,6 +95,9 @@ void update_probing_window(const struct RawSocket *rs) {
   ++y;
   mvwprintw(w, y, 1, "%s: %s", rs->if_name,
             fmt_mac_addr(mac_tmp, sizeof(mac_tmp), rs->if_addr));
+  if (g_enable_web) {
+    mvwprintw(w, y, 43, "Web: http://%s:%d/", g_web_addr, g_web_port);
+  }
   y += 2;
 
   wattron(w, COLOR_PAIR(MY_COLOR_HEADER));
@@ -327,22 +335,70 @@ void refresh_windows() {
 static const char *DEFAULT_ETH_DEV = "eth0";
 
 static void print_usage(const char *progname) {
-  printf("usage: %s [-d dest-addr] [-e type] [-i eth_dev] [-k] [-w]\n",
+  printf("usage: %s [-d dest-addr] [-e type] [-h] [-i eth_dev] [-k] [-w] "
+         "[-W addr[:port]]\n",
          progname);
   printf("  -d  Destination MAC address (xx:xx:xx:xx:xx:xx).\n");
   printf("  -e  Ethertype as 4 hexadecimal digits (default: %04x).\n",
          ETHERTYPE_RMTDOS);
+  printf("  -h  Show this help text.\n");
   printf("  -i  Name of local ethernet device (default: %s).\n",
          DEFAULT_ETH_DEV);
   printf("  -k  Dump keyboard layout to text file for debugging.\n");
-  printf("  -w  Serve CGA graphics view at http://127.0.0.1:8080/.\n");
+  printf("  -w  Serve CGA graphics view at http://%s:%d/.\n",
+         DEFAULT_WEB_ADDR, DEFAULT_WEB_PORT);
+  printf("  -W  Serve CGA graphics view at addr[:port]. Implies -w.\n");
+}
+
+static int parse_web_listen_arg(const char *arg, char *addr, size_t addr_len,
+                                int *port) {
+  char tmp[64];
+  char *sep;
+  char *end;
+  long parsed_port;
+
+  if (strlen(arg) >= sizeof(tmp)) {
+    fprintf(stderr, "web listen address is too long: %s\n", arg);
+    return -1;
+  }
+
+  strcpy(tmp, arg);
+  sep = strrchr(tmp, ':');
+
+  if (sep) {
+    *sep = '\0';
+    ++sep;
+    if (!*sep) {
+      fprintf(stderr, "missing web listen port: %s\n", arg);
+      return -1;
+    }
+
+    parsed_port = strtol(sep, &end, 10);
+    if (*end || parsed_port <= 0 || parsed_port > 65535) {
+      fprintf(stderr, "invalid web listen port: %s\n", sep);
+      return -1;
+    }
+    *port = parsed_port;
+  }
+
+  if (!tmp[0]) {
+    fprintf(stderr, "missing web listen address: %s\n", arg);
+    return -1;
+  }
+
+  if (inet_pton(AF_INET, tmp, &(struct in_addr){0}) != 1) {
+    fprintf(stderr, "invalid web listen address: %s\n", tmp);
+    return -1;
+  }
+
+  snprintf(addr, addr_len, "%s", tmp);
+  return 0;
 }
 
 int main(int argc, char **argv) {
   const char *if_name = DEFAULT_ETH_DEV;
   uint16_t ethertype = ETHERTYPE_RMTDOS;
   uint8_t dest_addr[ETH_ALEN] = {0};
-  int enable_web = 0;
   int i;
   int opt;
 
@@ -353,8 +409,12 @@ int main(int argc, char **argv) {
   memcpy(dest_addr, broadcast_addr, ETH_ALEN);
   hostlist_create();
 
-  while ((opt = getopt(argc, argv, "d:e:i:klw")) != -1) {
+  while ((opt = getopt(argc, argv, "d:e:hi:kwW:")) != -1) {
     switch (opt) {
+      case 'h':
+        print_usage(argv[0]);
+        return EXIT_SUCCESS;
+
       case 'i':
         if_name = optarg;
         break;
@@ -381,7 +441,15 @@ int main(int argc, char **argv) {
         return EXIT_SUCCESS;
 
       case 'w':
-        enable_web = 1;
+        g_enable_web = 1;
+        break;
+
+      case 'W':
+        g_enable_web = 1;
+        if (parse_web_listen_arg(optarg, g_web_addr, sizeof(g_web_addr),
+                                 &g_web_port)) {
+          return EXIT_FAILURE;
+        }
         break;
 
       default: /* '?' */
@@ -421,8 +489,8 @@ int main(int argc, char **argv) {
     return EXIT_FAILURE;
   }
 
-  if (enable_web) {
-    if (0 > web_server_start(&g_web_server, "127.0.0.1", 8080)) {
+  if (g_enable_web) {
+    if (0 > web_server_start(&g_web_server, g_web_addr, g_web_port)) {
       return EXIT_FAILURE;
     }
 
@@ -468,7 +536,7 @@ int main(int argc, char **argv) {
         process_socket_io(&rs);
       }
 
-      if (enable_web && events[n].data.fd == g_web_server.listen_fd) {
+      if (g_enable_web && events[n].data.fd == g_web_server.listen_fd) {
         web_server_process(&g_web_server);
       }
     }

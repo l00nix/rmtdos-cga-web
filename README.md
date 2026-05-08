@@ -68,6 +68,11 @@ For experimental HP 200LX-style CGA graphics viewing, run the client with
 Linux machine over SSH, forward the port from Windows with
 `ssh -L 8080:127.0.0.1:8080 user@linux-host`.
 
+By default the web viewer only listens on `127.0.0.1`, so it is reachable from
+the Linux machine itself or through an SSH tunnel.  To expose it directly on the
+LAN, pass `-W 0.0.0.0:8080`.  The web viewer has no authentication, so only use
+`-W 0.0.0.0:8080` on a trusted network.
+
 ![Client menu](/images/menu.png)
 
 The displayed columns are:
