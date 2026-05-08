@@ -84,17 +84,17 @@ int unload_other_tsr() {
   printf("Unloading previously resident instance.\n");
 #endif
   x86_reset_regs(&regs);
-  regs.w.ax = MULTIPLEX_MAGIC_AX;
-  regs.w.bx = MULTIPLEX_MAGIC_BX;
-  regs.w.dx = MULTIPLEX_CMD_UNINSTALL;
+  regs.u.w.ax = MULTIPLEX_MAGIC_AX;
+  regs.u.w.bx = MULTIPLEX_MAGIC_BX;
+  regs.u.w.dx = MULTIPLEX_CMD_UNINSTALL;
 
 #if DEBUG
-  printf("int 2fh.  AX:%04x BX:%04x DX:%04x\n", regs.w.ax, regs.w.bx,
-         regs.w.dx);
+  printf("int 2fh.  AX:%04x BX:%04x DX:%04x\n", regs.u.w.ax, regs.u.w.bx,
+         regs.u.w.dx);
 #endif
   x86_call(0x2f, &regs);
 
-  return regs.w.ax;
+  return regs.u.w.ax;
 }
 
 void print_usage(const char *prog) {
@@ -177,13 +177,13 @@ int main(int argc, char *argv[]) {
 
   // Check to see if a previous incarnation is already installed / "resident".
   x86_reset_regs(&regs);
-  regs.w.ax = MULTIPLEX_MAGIC_AX;
-  regs.w.bx = MULTIPLEX_MAGIC_BX;
-  regs.w.dx = MULTIPLEX_CMD_INSTALL_CHECK;
+  regs.u.w.ax = MULTIPLEX_MAGIC_AX;
+  regs.u.w.bx = MULTIPLEX_MAGIC_BX;
+  regs.u.w.dx = MULTIPLEX_CMD_INSTALL_CHECK;
 
   x86_call(0x2f, &regs);
-  installed = !regs.w.bx;
-  safe_to_remove = !regs.w.ax;
+  installed = !regs.u.w.bx;
+  safe_to_remove = !regs.u.w.ax;
 
   if (unload) {
     if (!installed) {
@@ -193,17 +193,17 @@ int main(int argc, char *argv[]) {
 
     if (safe_to_remove) {
       unload_other_tsr();
-      printf("Resident program removed. PSP was %04x\n", regs.w.cx);
+      printf("Resident program removed. PSP was %04x\n", regs.u.w.cx);
       return EXIT_SUCCESS;
     } else {
       printf("Unable to uninstall, someone else hooked interrupt %02xh.\n",
-             regs.w.ax);
+             regs.u.w.ax);
       return EXIT_FAILURE;
     }
   }
 
   if (installed) {
-    printf("Already installed.  PSP:%04x\n", regs.w.cx);
+    printf("Already installed.  PSP:%04x\n", regs.u.w.cx);
     return EXIT_SUCCESS;
   }
 
@@ -232,7 +232,7 @@ int main(int argc, char *argv[]) {
 
   // Free our PSP's environment block, or we'll leak memory later.
   x86_reset_regs(&regs);
-  regs.w.ax = 0x4900; // Free memory block.
+  regs.u.w.ax = 0x4900; // Free memory block.
   regs.es = __envseg;
   x86_call(0x21, &regs);
 
@@ -242,14 +242,14 @@ int main(int argc, char *argv[]) {
   // Tell DOS that we are going resident.
   // AH=31h (TSR), AL=0 (return code).
   x86_reset_regs(&regs);
-  regs.w.ax = 0x3100;
-  regs.w.dx = (uint16_t)keep_ptr >> 4;
+  regs.u.w.ax = 0x3100;
+  regs.u.w.dx = (uint16_t)keep_ptr >> 4;
 
   // If successful, this int 21h call will not return.
   x86_call(0x21, &regs);
 
   // Well crud...
-  printf("TSR failed. AX = %04x\n", regs.w.ax);
+  printf("TSR failed. AX = %04x\n", regs.u.w.ax);
 
   // We failed to go TSR, so we MUST unhook any interrupts that we've
   // captured, and tell the packet driver to not call into us either.

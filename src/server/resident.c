@@ -72,11 +72,11 @@ int resident_do_uninstall() {
   pktdrv_done();
 
   x86_reset_regs(&regs);
-  regs.w.ax = 0x4900;   // DOS Free Memory.
+  regs.u.w.ax = 0x4900;   // DOS Free Memory.
   regs.es = __get_cs(); // Block to free (our PSP)
   x86_call(0x21, &regs);
 
-  return -regs.w.ax;
+  return -regs.u.w.ax;
 }
 
 #if DEBUG
@@ -117,26 +117,26 @@ void int2f_handler(struct CpuRegs *regs) {
   }
 #endif
 
-  switch (regs->w.dx) {
+  switch (regs->u.w.dx) {
     case MULTIPLEX_CMD_INSTALL_CHECK:
       // Can we uninstall safely?
-      regs->w.ax = resident_uninstall_check();
+      regs->u.w.ax = resident_uninstall_check();
 
       // Indicate that our ISR handled the interrupt.
-      regs->w.bx = 0;
+      regs->u.w.bx = 0;
 
       // Not strictly required, but meh.
-      regs->w.cx = __get_cs();
+      regs->u.w.cx = __get_cs();
 
       // Unused in response, but clear it anyway.
-      regs->w.dx = 0;
+      regs->u.w.dx = 0;
       return;
 
     case MULTIPLEX_CMD_UNINSTALL:
-      regs->w.ax = resident_do_uninstall();
-      regs->w.bx = 0;
-      regs->w.cx = __get_cs();
-      regs->w.dx = 0;
+      regs->u.w.ax = resident_do_uninstall();
+      regs->u.w.bx = 0;
+      regs->u.w.cx = __get_cs();
+      regs->u.w.dx = 0;
       break;
   }
 }
