@@ -189,6 +189,10 @@ Linux client is running with `-w` or `-W`.  The demo cycles through BIOS CGA
 graphics modes `04h`, `05h`, and `06h`; press `M` to switch modes, `SPACE` to
 redraw the current pattern, and `X` or `ESC` to exit back to text mode.
 
+The browser viewer renders modes `04h` and `05h` with classic CGA color
+palettes, and mode `06h` as black and white.  It does not currently capture
+dynamic CGA palette-register changes.
+
 Q: How can I view the raw Ethernet traffic (tcpdump filter expression)?
 
 A: `tcpdump 'ether proto 0x80ab'`
