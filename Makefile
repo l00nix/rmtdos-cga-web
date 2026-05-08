@@ -17,12 +17,12 @@ TMPDIR=tmp
 LD86_LIBDIR=/usr/lib64/bcc
 
 # The "client" runs on Linux.
-CLIENT_BIN=$(OUTDIR)/rmtdos-client
+CLIENT_BIN=$(OUTDIR)/rmtdos-cga-web-client
 NCURSESW_FLAGS += $(shell pkg-config ncursesw --cflags --libs)
 
-# "rmtdos.com" runs on DOS.
-RMTDOS_BIN=$(OUTDIR)/rmtdos.com
-RMTDOS_MAP=$(OUTDIR)/rmtdos.map
+# "cgaweb.com" runs on DOS.
+RMTDOS_BIN=$(OUTDIR)/cgaweb.com
+RMTDOS_MAP=$(OUTDIR)/cgaweb.map
 
 # DOS Program to run VGA text mode tests.
 VGADEMO_BIN=$(OUTDIR)/vga_demo.com
