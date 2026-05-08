@@ -74,6 +74,22 @@ enum PKT_TYPE {
   // Server -> Client
   // Contains raw CGA graphics framebuffer data.
   V1_CGA_GRAPHICS = 8,
+
+  // Client -> Server
+  // Begin upload of one file into the DOS current directory.
+  V1_FILE_PUT_BEGIN = 9,
+
+  // Client -> Server
+  // One chunk of uploaded file data.
+  V1_FILE_PUT_DATA = 10,
+
+  // Client -> Server
+  // Finish upload of one file.
+  V1_FILE_PUT_END = 11,
+
+  // Server -> Client
+  // Acknowledges one file-transfer operation.
+  V1_FILE_ACK = 12,
 };
 
 #if NEED_PRAGMA_PACK
@@ -144,6 +160,50 @@ struct CgaGraphics {
   uint16_t height;    // Pixel height, network byte order.
   uint16_t offset;    // Byte offset from $b800:0, network byte order.
   uint16_t count;     // Count of BYTES in packet, network byte order.
+};
+
+#define FILE_TRANSFER_NAME_BYTES 64
+#define FILE_TRANSFER_CHUNK_BYTES 512
+
+enum FILE_ACK_COMMAND {
+  FILE_ACK_BEGIN = 1,
+  FILE_ACK_DATA = 2,
+  FILE_ACK_END = 3,
+};
+
+enum FILE_ACK_STATUS {
+  FILE_ACK_OK = 0,
+  FILE_ACK_BUSY = 1,
+  FILE_ACK_ERROR = 2,
+};
+
+// V1_FILE_PUT_BEGIN: Client -> Server
+struct FilePutBegin {
+  uint32_t transfer_id; // network byte order
+  uint32_t size;        // network byte order
+  char filename[FILE_TRANSFER_NAME_BYTES];
+};
+
+// V1_FILE_PUT_DATA: Client -> Server
+// Followed by `count` bytes of file data.
+struct FilePutData {
+  uint32_t transfer_id; // network byte order
+  uint32_t offset;      // network byte order
+  uint16_t count;       // network byte order
+};
+
+// V1_FILE_PUT_END: Client -> Server
+struct FilePutEnd {
+  uint32_t transfer_id; // network byte order
+  uint32_t size;        // network byte order
+};
+
+// V1_FILE_ACK: Server -> Client
+struct FileAck {
+  uint32_t transfer_id; // network byte order
+  uint16_t command;     // FILE_ACK_COMMAND, network byte order
+  uint16_t status;      // FILE_ACK_STATUS, network byte order
+  uint32_t offset;      // next expected offset, network byte order
 };
 
 // Bit flags for `Keystroke.flags`

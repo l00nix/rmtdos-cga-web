@@ -18,8 +18,7 @@
 /* Enabling 'DEBUG' will considerably increase the resident memory usage. */
 #define DEBUG 0
 
-/* Int 28 ("Dos Idle") is not used at the moment.  So we can disable it in
-   code to reduce our resident memory usage. */
-#define HAS_INT28 0
+/* Int 28 ("DOS Idle") is used for DOS-safe file-transfer writes. */
+#define HAS_INT28 1
 
 #endif /* __RMTDOS_SERVER_CONFIG_H */

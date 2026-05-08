@@ -13,6 +13,7 @@
 
 #include "server/bufmgr.h"
 #include "server/debug.h"
+#include "server/file_transfer.h"
 #include "server/globals.h"
 #include "server/pktdrv.h"
 #include "server/protocol.h"
@@ -150,7 +151,7 @@ void handle_inject_keystroke(const struct Buffer *buffer) {
   }
 }
 
-void protocol_init() {}
+void protocol_init() { file_transfer_init(); }
 
 void protocol_process() {
   struct Buffer *buffer;
@@ -179,6 +180,11 @@ void protocol_process() {
           break;
         case V1_INJECT_KEYSTROKE:
           handle_inject_keystroke(buffer);
+          break;
+        case V1_FILE_PUT_BEGIN:
+        case V1_FILE_PUT_DATA:
+        case V1_FILE_PUT_END:
+          file_transfer_handle_packet(buffer);
           break;
       }
     }

@@ -49,8 +49,9 @@ graphics viewer.
 1. Receives VGA text memory dumps, and renders them via `ncurses`.
 1. Experimental: run with `-w` to serve a browser-based CGA graphics view at
    `http://127.0.0.1:8080/`.
+1. Experimental: run with `--put LOCAL REMOTE` and `-d` to upload one file to
+   the DOS machine.
 1. Run with `-h` to see usage and command line options.
-1. Run with `-u` to uninstall/unload the resident program.
 
 ## Usage
 
@@ -147,8 +148,26 @@ dynamic CGA palette-register changes.
 To inspect the raw Ethernet traffic, use `tcpdump 'ether proto 0x80ab'` or the
 Wireshark filter `"eth.type == 0x80ab"`.
 
+## File Transfer
+
+Experimental upload support can copy one file from Linux to the DOS current
+directory.  The first version is intentionally simple and requires the target
+DOS machine's MAC address:
+
+```
+sudo ./rmtdos-cga-web-client -i enp2s0 -d 00:07:40:19:1a:4d \
+  --put ./cga_demo.com CGA_DEMO.COM
+```
+
+File upload uses the same raw Ethernet transport as the remote screen session.
+DOS writes are processed from the DOS idle interrupt, so uploads work best while
+the DOS machine is sitting at the command prompt or otherwise calling DOS idle.
+
+The current upload path is stop-and-wait, one file at a time, and the remote
+filename must fit in 63 characters.  Download support is not implemented yet.
+
 ## Possible Future Work
 
-A lightweight file-transfer mode over the same raw Ethernet transport should be
-feasible.  It would need chunking, checksums, retry/ack handling, and a DOS-side
-write path that stays careful about TSR memory use.
+Possible next file-transfer steps include download support, directory listings,
+and a friendlier target picker that can upload to the selected ncurses session
+without typing a MAC address.

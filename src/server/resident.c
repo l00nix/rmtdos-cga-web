@@ -12,6 +12,7 @@
 #include "lib16/x86.h"
 #include "lib16/video.h"
 #include "server/config.h"
+#include "server/file_transfer.h"
 #include "server/globals.h"
 #include "server/int08.h"
 #include "server/int28.h"
@@ -153,5 +154,7 @@ void int28_handler() {
     isr_show_debug_stats();
   }
 #endif
+
+  file_transfer_process_idle();
 }
 #endif

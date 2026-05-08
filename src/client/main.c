@@ -25,6 +25,7 @@
 #include <unistd.h>
 
 #include "client/curses.h"
+#include "client/file_transfer.h"
 #include "client/globals.h"
 #include "client/hostlist.h"
 #include "client/keyboard.h"
@@ -334,9 +335,13 @@ void refresh_windows() {
 
 static const char *DEFAULT_ETH_DEV = "eth0";
 
+enum LongOption {
+  OPT_PUT = 1000,
+};
+
 static void print_usage(const char *progname) {
-  printf("usage: %s [-d dest-addr] [-e type] [-h] [-i eth_dev] [-k] [-w] "
-         "[-W addr[:port]]\n",
+  printf("usage: %s [-d dest-addr] [-e type] [-h] [-i eth_dev] [-k] "
+         "[--put local remote] [-w] [-W addr[:port]]\n",
          progname);
   printf("  -d  Destination MAC address (xx:xx:xx:xx:xx:xx).\n");
   printf("  -e  Ethertype as 4 hexadecimal digits (default: %04x).\n",
@@ -345,6 +350,7 @@ static void print_usage(const char *progname) {
   printf("  -i  Name of local ethernet device (default: %s).\n",
          DEFAULT_ETH_DEV);
   printf("  -k  Dump keyboard layout to text file for debugging.\n");
+  printf("  --put local remote  Upload one file to the DOS current directory.\n");
   printf("  -w  Serve CGA graphics view at http://%s:%d/.\n",
          DEFAULT_WEB_ADDR, DEFAULT_WEB_PORT);
   printf("  -W  Serve CGA graphics view at addr[:port]. Implies -w.\n");
@@ -399,8 +405,16 @@ int main(int argc, char **argv) {
   const char *if_name = DEFAULT_ETH_DEV;
   uint16_t ethertype = ETHERTYPE_RMTDOS;
   uint8_t dest_addr[ETH_ALEN] = {0};
+  int dest_addr_set = 0;
+  int put_mode = 0;
+  const char *put_local_path = NULL;
+  const char *put_remote_path = NULL;
   int i;
   int opt;
+  static const struct option long_options[] = {
+      {"put", no_argument, NULL, OPT_PUT},
+      {NULL, 0, NULL, 0},
+  };
 
   // http://yjlv.blogspot.com/2015/10/displaying-unicode-with-ncurses-in-c.html
   setlocale(LC_ALL, "");
@@ -409,8 +423,13 @@ int main(int argc, char **argv) {
   memcpy(dest_addr, broadcast_addr, ETH_ALEN);
   hostlist_create();
 
-  while ((opt = getopt(argc, argv, "d:e:hi:kwW:")) != -1) {
+  while ((opt = getopt_long(argc, argv, "d:e:hi:kwW:", long_options, NULL)) !=
+         -1) {
     switch (opt) {
+      case OPT_PUT:
+        put_mode = 1;
+        break;
+
       case 'h':
         print_usage(argv[0]);
         return EXIT_SUCCESS;
@@ -430,6 +449,7 @@ int main(int argc, char **argv) {
         for (i = 0; i < ETH_ALEN; i++) {
           dest_addr[i] = mac[i];
         }
+        dest_addr_set = 1;
       } break;
 
       case 'e':
@@ -458,13 +478,29 @@ int main(int argc, char **argv) {
     }
   }
 
-  if (optind < argc) {
-    //  msg = argv[optind];
+  if (put_mode) {
+    if (!dest_addr_set || optind + 2 != argc) {
+      fprintf(stderr, "--put requires -d dest-addr plus local and remote paths\n");
+      print_usage(argv[0]);
+      return EXIT_FAILURE;
+    }
+    put_local_path = argv[optind];
+    put_remote_path = argv[optind + 1];
+  } else if (optind < argc) {
+    print_usage(argv[0]);
+    return EXIT_FAILURE;
   }
 
   struct RawSocket rs = {0};
   if (0 > create_socket(&rs, if_name, ethertype)) {
     return EXIT_FAILURE;
+  }
+
+  if (put_mode) {
+    int result = file_transfer_put(&rs, dest_addr, put_local_path,
+                                   put_remote_path);
+    close_socket(&rs);
+    return result ? EXIT_FAILURE : EXIT_SUCCESS;
   }
 
   int epoll_fd;
