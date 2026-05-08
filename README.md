@@ -168,6 +168,13 @@ that the typical termios control characters (ex: `CTRL-C`) do NOT generate
 signals, but instead are presented to the client, so that the client can send
 them to the DOS end.
 
+Q: How do I exit `vga_demo.com` or switch its video mode?
+
+A: Use `ALT-X` to exit `vga_demo.com`, and `ALT-V` to cycle its video mode.
+Those are DOS-side demo keys sent through the remote keyboard path; they do not
+exit the Linux client.  Use `CTRL-]` or `ALT-ESCAPE` only when you want to exit
+`rmtdos-cga-web-client` itself.
+
 Q: How can I view the raw Ethernet traffic (tcpdump filter expression)?
 
 A: `tcpdump 'ether proto 0x80ab'`

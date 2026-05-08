@@ -155,7 +155,7 @@ void update_hud(struct RemoteHost *rh) {
   mvwprintw(rh->window, ++y, 0, "addr: %s, rows: %d, cols:%d, latency:%s",
             mac_addr, rh->text_rows, rh->text_cols, stale);
 
-  mvwprintw(rh->window, ++y, 0, "<ALT-ESC> to Exit");
+  mvwprintw(rh->window, ++y, 0, "<CTRL-]> / <ALT-ESC> to Exit");
 }
 
 void update_session_window(struct RemoteHost *rh, uint16_t video_offset,
