@@ -26,12 +26,12 @@ extern void pktdrv_receive_isr();
 // Do NOT call any DOS or BIOS functions.  Do not touch the heap.
 // Typically called with interrupts disabled, but YMMV.
 void pktdrv_receive_func(struct CpuRegs *regs) {
-  if (regs->w.ax) {
+  if (regs->u.w.ax) {
     // Second call for buffer; Packet driver is done writing to it.
     buffer_mark_ready((struct Buffer *)(regs->si));
   } else {
     // First call; attempt to allocate a buffer to return to the driver.
-    void *buffer = buffer_acquire(regs->w.cx);
+    void *buffer = buffer_acquire(regs->u.w.cx);
 
     if (buffer) {
       regs->es = __get_ds();
@@ -51,10 +51,10 @@ enum PktDrvResultCode pktdrv_get_parameters(PktDrvIrq irq,
   struct CpuRegs regs;
 
   x86_reset_regs(&regs);
-  regs.w.ax = 0x0a00; // `get_parameters()` call.
+  regs.u.w.ax = 0x0a00; // `get_parameters()` call.
   x86_call(irq, &regs);
   if (regs.flags & CPU_FLAG_CARRY) {
-    return regs.b.dh; // Error code.
+    return regs.u.b.dh; // Error code.
   }
 
   x86_memcpy_bytes(__get_ds(), (uint16_t)params, regs.es, regs.di,
@@ -82,55 +82,55 @@ enum PktDrvResultCode pktdrv_init(PktDrvIrq irq) {
   // Register to receive "Regular Ethernet" packets.
   // Leave 'char far *type' as NULL, so that we get all packets.
   x86_reset_regs(&regs);
-  regs.b.al = PKTDRV_CLASS_ETHERNET; // "if_class"
-  regs.b.ah = PKTDRV_FUNC_ACCESS_TYPE;
-  regs.w.bx = 0xffff;            // "if_type"
-  regs.b.dl = 0;                 // "if_number"
+  regs.u.b.al = PKTDRV_CLASS_ETHERNET; // "if_class"
+  regs.u.b.ah = PKTDRV_FUNC_ACCESS_TYPE;
+  regs.u.w.bx = 0xffff;            // "if_type"
+  regs.u.b.dl = 0;                 // "if_number"
   regs.ds = __get_ds();          // "type specification"
   regs.si = &ethertype;          // "type specification"
-  regs.w.cx = sizeof(ethertype); // typelen
+  regs.u.w.cx = sizeof(ethertype); // typelen
   regs.es = __get_cs();          // "(far *receiver)()"
   regs.di = pktdrv_receive_isr;  // "(far *receiver)()"
   x86_call(irq, &regs);
   if (regs.flags & CPU_FLAG_CARRY) {
     printf("access_type() failed\n");
-    return regs.b.dh; // Error code.
+    return regs.u.b.dh; // Error code.
   }
 
   // At this point, we are connected.
   // Our ISR could be invoked at any moment.
   g_pktdrv_irq = irq;
-  g_pktdrv_handle = regs.w.ax;
+  g_pktdrv_handle = regs.u.w.ax;
 
   // Call `driver_info()` and cache the (static) results.
   x86_reset_regs(&regs);
-  regs.w.ax = (PKTDRV_FUNC_DRIVER_INFO << 8) | 0xff;
-  regs.w.bx = g_pktdrv_handle;
+  regs.u.w.ax = (PKTDRV_FUNC_DRIVER_INFO << 8) | 0xff;
+  regs.u.w.bx = g_pktdrv_handle;
   x86_call(irq, &regs);
   if (regs.flags & CPU_FLAG_CARRY) {
     printf("driver_info() failed\n");
-    return regs.b.dh; // Error code.
+    return regs.u.b.dh; // Error code.
   }
 
-  g_pktdrv_info.version = regs.w.bx;
-  g_pktdrv_info.type = regs.w.dx;
-  g_pktdrv_info._class = regs.b.ch;
-  g_pktdrv_info.number = regs.b.cl;
-  g_pktdrv_info.functionality = regs.b.al;
+  g_pktdrv_info.version = regs.u.w.bx;
+  g_pktdrv_info.type = regs.u.w.dx;
+  g_pktdrv_info._class = regs.u.b.ch;
+  g_pktdrv_info.number = regs.u.b.cl;
+  g_pktdrv_info.functionality = regs.u.b.al;
   x86_read_asciiz(g_pktdrv_info.name, sizeof(g_pktdrv_info.name), regs.ds,
                   regs.si);
 
   // Call `get_address()` to get the MAC address of the NIC.
   x86_reset_regs(&regs);
-  regs.w.ax = PKTDRV_FUNC_GET_ADDRESS << 8;
-  regs.w.bx = g_pktdrv_handle;
-  regs.w.cx = sizeof(g_pktdrv_info.mac_addr);
+  regs.u.w.ax = PKTDRV_FUNC_GET_ADDRESS << 8;
+  regs.u.w.bx = g_pktdrv_handle;
+  regs.u.w.cx = sizeof(g_pktdrv_info.mac_addr);
   regs.es = __get_ds();
   regs.di = g_pktdrv_info.mac_addr;
   x86_call(irq, &regs);
   if (regs.flags & CPU_FLAG_CARRY) {
     printf("get_address() failed\n");
-    return regs.b.dh; // Error code.
+    return regs.u.b.dh; // Error code.
   }
 
   return PKTDRV_OK;
@@ -141,12 +141,12 @@ enum PktDrvResultCode pktdrv_done() {
 
   if (g_pktdrv_handle) {
     x86_reset_regs(&regs);
-    regs.w.ax = PKTDRV_FUNC_RELEASE_TYPE << 8;
-    regs.w.bx = g_pktdrv_handle;
+    regs.u.w.ax = PKTDRV_FUNC_RELEASE_TYPE << 8;
+    regs.u.w.bx = g_pktdrv_handle;
 
     x86_call(g_pktdrv_irq, &regs);
     if (regs.flags & CPU_FLAG_CARRY) {
-      return regs.b.dh; // Error code.
+      return regs.u.b.dh; // Error code.
     }
   }
 
@@ -164,14 +164,14 @@ enum PktDrvResultCode pktdrv_send(const void *buffer, uint16_t length) {
 
   if (g_pktdrv_handle) {
     x86_reset_regs(&regs);
-    regs.w.ax = PKTDRV_FUNC_SEND_PKT << 8;
-    regs.w.cx = length > MIN_ETH_FRAME_SIZE ? length : MIN_ETH_FRAME_SIZE;
+    regs.u.w.ax = PKTDRV_FUNC_SEND_PKT << 8;
+    regs.u.w.cx = length > MIN_ETH_FRAME_SIZE ? length : MIN_ETH_FRAME_SIZE;
     regs.ds = __get_ds();
     regs.si = buffer;
 
     x86_call(g_pktdrv_irq, &regs);
     if (regs.flags & CPU_FLAG_CARRY) {
-      return regs.b.dh; // Error code.
+      return regs.u.b.dh; // Error code.
     }
   }
 

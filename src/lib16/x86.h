@@ -43,7 +43,7 @@ struct CpuRegs {
       uint8_t dl; // [6]
       uint8_t dh; // [7]
     } b;
-  };
+  } u;
 
   // These registers are always 16 bits each.
   uint16_t si;    // [8]

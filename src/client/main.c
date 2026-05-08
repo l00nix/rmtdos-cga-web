@@ -30,6 +30,7 @@
 #include "client/keyboard.h"
 #include "client/network.h"
 #include "client/util.h"
+#include "client/web.h"
 #include "common/protocol.h"
 
 #define BUF_SIZE (ETH_FRAME_LEN)
@@ -64,6 +65,7 @@ static uint8_t broadcast_addr[ETH_ALEN] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 enum AppMode g_app_mode = MODE_PROBING;
 int g_running = 1;
 int g_show_debug_window = 0;
+struct WebServer g_web_server = {.listen_fd = -1};
 
 static struct timeval g_last_probe = {0};
 
@@ -181,6 +183,34 @@ void process_incoming_video_text(const uint8_t *buf, size_t received) {
   update_session_window(rh, offset, count);
 }
 
+void process_incoming_cga_graphics(const uint8_t *buf, size_t received) {
+  const struct ether_header *eh = (const struct ether_header *)buf;
+  const struct ProtocolHeader *ph = (const struct ProtocolHeader *)(eh + 1);
+  const struct CgaGraphics *graphics = (const struct CgaGraphics *)(ph + 1);
+  const uint8_t *data = (const uint8_t *)(graphics + 1);
+
+  struct RemoteHost *rh = hostlist_find_by_mac(eh->ether_shost);
+  if (!rh) {
+    return;
+  }
+
+  gettimeofday(&(rh->tv_last_resp), NULL);
+
+  const uint16_t offset = ntohs(graphics->offset);
+  const uint16_t count = ntohs(graphics->count);
+  if (count + offset > sizeof(rh->cga_graphics_buffer)) {
+    return;
+  }
+
+  memcpy(rh->cga_graphics_buffer + offset, data, count);
+  rh->cga_graphics_mode = graphics->video_mode;
+  rh->cga_graphics_bpp = graphics->bpp;
+  rh->cga_graphics_width = ntohs(graphics->width);
+  rh->cga_graphics_height = ntohs(graphics->height);
+  rh->cga_graphics_valid = 1;
+  ++rh->cga_graphics_generation;
+}
+
 void process_socket_io(struct RawSocket *rs) {
   uint8_t buf[ETH_FRAME_LEN];
   const struct ether_header *eh = (const struct ether_header *)buf;
@@ -220,6 +250,9 @@ void process_socket_io(struct RawSocket *rs) {
       break;
     case V1_VGA_TEXT:
       process_incoming_video_text(buf, received);
+      break;
+    case V1_CGA_GRAPHICS:
+      process_incoming_cga_graphics(buf, received);
       break;
   }
 }
@@ -294,19 +327,22 @@ void refresh_windows() {
 static const char *DEFAULT_ETH_DEV = "eth0";
 
 static void print_usage(const char *progname) {
-  printf("usage: %s [-d dest-addr] [-e type] [-i eth_dev] [-k]\n", progname);
+  printf("usage: %s [-d dest-addr] [-e type] [-i eth_dev] [-k] [-w]\n",
+         progname);
   printf("  -d  Destination MAC address (xx:xx:xx:xx:xx:xx).\n");
   printf("  -e  Ethertype as 4 hexadecimal digits (default: %04x).\n",
          ETHERTYPE_RMTDOS);
   printf("  -i  Name of local ethernet device (default: %s).\n",
          DEFAULT_ETH_DEV);
   printf("  -k  Dump keyboard layout to text file for debugging.\n");
+  printf("  -w  Serve CGA graphics view at http://127.0.0.1:8080/.\n");
 }
 
 int main(int argc, char **argv) {
   const char *if_name = DEFAULT_ETH_DEV;
   uint16_t ethertype = ETHERTYPE_RMTDOS;
   uint8_t dest_addr[ETH_ALEN] = {0};
+  int enable_web = 0;
   int i;
   int opt;
 
@@ -317,7 +353,7 @@ int main(int argc, char **argv) {
   memcpy(dest_addr, broadcast_addr, ETH_ALEN);
   hostlist_create();
 
-  while ((opt = getopt(argc, argv, "d:e:i:kl")) != -1) {
+  while ((opt = getopt(argc, argv, "d:e:i:klw")) != -1) {
     switch (opt) {
       case 'i':
         if_name = optarg;
@@ -343,6 +379,10 @@ int main(int argc, char **argv) {
       case 'k':
         dump_keyboard_table(stdout);
         return EXIT_SUCCESS;
+
+      case 'w':
+        enable_web = 1;
+        break;
 
       default: /* '?' */
         print_usage(argv[0]);
@@ -381,6 +421,21 @@ int main(int argc, char **argv) {
     return EXIT_FAILURE;
   }
 
+  if (enable_web) {
+    if (0 > web_server_start(&g_web_server, "127.0.0.1", 8080)) {
+      return EXIT_FAILURE;
+    }
+
+    struct epoll_event ev_web;
+    ev_web.events = EPOLLIN;
+    ev_web.data.fd = g_web_server.listen_fd;
+    if (0 > epoll_ctl(epoll_fd, EPOLL_CTL_ADD, g_web_server.listen_fd,
+                      &ev_web)) {
+      perror("epoll_ctl(web)");
+      return EXIT_FAILURE;
+    }
+  }
+
   init_ncurses();
 
   // Ping broadcast address, to trigger a response from all clients.
@@ -412,6 +467,10 @@ int main(int argc, char **argv) {
       if (events[n].data.fd == rs.sock_fd) {
         process_socket_io(&rs);
       }
+
+      if (enable_web && events[n].data.fd == g_web_server.listen_fd) {
+        web_server_process(&g_web_server);
+      }
     }
 
     process_timers(&rs);
@@ -423,6 +482,7 @@ int main(int argc, char **argv) {
 
   close(epoll_fd);
   close_socket(&rs);
+  web_server_close(&g_web_server);
 
   hostlist_destroy();
 
