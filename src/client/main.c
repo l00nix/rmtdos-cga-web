@@ -337,11 +337,12 @@ static const char *DEFAULT_ETH_DEV = "eth0";
 
 enum LongOption {
   OPT_PUT = 1000,
+  OPT_GET,
 };
 
 static void print_usage(const char *progname) {
   printf("usage: %s [-d dest-addr] [-e type] [-h] [-i eth_dev] [-k] "
-         "[--put local remote] [-w] [-W addr[:port]]\n",
+         "[--put local remote] [--get remote local] [-w] [-W addr[:port]]\n",
          progname);
   printf("  -d  Destination MAC address (xx:xx:xx:xx:xx:xx).\n");
   printf("  -e  Ethertype as 4 hexadecimal digits (default: %04x).\n",
@@ -351,6 +352,7 @@ static void print_usage(const char *progname) {
          DEFAULT_ETH_DEV);
   printf("  -k  Dump keyboard layout to text file for debugging.\n");
   printf("  --put local remote  Upload one file to the DOS current directory.\n");
+  printf("  --get remote local  Download one file from the DOS current directory.\n");
   printf("  -w  Serve CGA graphics view at http://%s:%d/.\n",
          DEFAULT_WEB_ADDR, DEFAULT_WEB_PORT);
   printf("  -W  Serve CGA graphics view at addr[:port]. Implies -w.\n");
@@ -407,12 +409,16 @@ int main(int argc, char **argv) {
   uint8_t dest_addr[ETH_ALEN] = {0};
   int dest_addr_set = 0;
   int put_mode = 0;
+  int get_mode = 0;
   const char *put_local_path = NULL;
   const char *put_remote_path = NULL;
+  const char *get_remote_path = NULL;
+  const char *get_local_path = NULL;
   int i;
   int opt;
   static const struct option long_options[] = {
       {"put", no_argument, NULL, OPT_PUT},
+      {"get", no_argument, NULL, OPT_GET},
       {NULL, 0, NULL, 0},
   };
 
@@ -428,6 +434,10 @@ int main(int argc, char **argv) {
     switch (opt) {
       case OPT_PUT:
         put_mode = 1;
+        break;
+
+      case OPT_GET:
+        get_mode = 1;
         break;
 
       case 'h':
@@ -478,6 +488,12 @@ int main(int argc, char **argv) {
     }
   }
 
+  if (put_mode && get_mode) {
+    fprintf(stderr, "--put and --get cannot be used together\n");
+    print_usage(argv[0]);
+    return EXIT_FAILURE;
+  }
+
   if (put_mode) {
     if (!dest_addr_set || optind + 2 != argc) {
       fprintf(stderr, "--put requires -d dest-addr plus local and remote paths\n");
@@ -486,6 +502,14 @@ int main(int argc, char **argv) {
     }
     put_local_path = argv[optind];
     put_remote_path = argv[optind + 1];
+  } else if (get_mode) {
+    if (!dest_addr_set || optind + 2 != argc) {
+      fprintf(stderr, "--get requires -d dest-addr plus remote and local paths\n");
+      print_usage(argv[0]);
+      return EXIT_FAILURE;
+    }
+    get_remote_path = argv[optind];
+    get_local_path = argv[optind + 1];
   } else if (optind < argc) {
     print_usage(argv[0]);
     return EXIT_FAILURE;
@@ -499,6 +523,13 @@ int main(int argc, char **argv) {
   if (put_mode) {
     int result = file_transfer_put(&rs, dest_addr, put_local_path,
                                    put_remote_path);
+    close_socket(&rs);
+    return result ? EXIT_FAILURE : EXIT_SUCCESS;
+  }
+
+  if (get_mode) {
+    int result = file_transfer_get(&rs, dest_addr, get_remote_path,
+                                   get_local_path);
     close_socket(&rs);
     return result ? EXIT_FAILURE : EXIT_SUCCESS;
   }

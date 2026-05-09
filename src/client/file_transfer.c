@@ -17,11 +17,11 @@
 #include "client/file_transfer.h"
 #include "common/protocol.h"
 
-#define PUT_RETRIES 10
+#define FILE_RETRIES 10
 #define ACK_TIMEOUT_SEC 2
 
-static uint32_t make_transfer_id(struct RawSocket *sock) {
-  return sock->session_id ^ 0x66554c45;
+static uint32_t make_transfer_id(struct RawSocket *sock, uint32_t salt) {
+  return sock->session_id ^ salt;
 }
 
 static int recv_file_ack(struct RawSocket *sock, const uint8_t *dest_mac_addr,
@@ -80,7 +80,7 @@ static int send_with_ack(struct RawSocket *sock, const uint8_t *dest_mac_addr,
                          uint16_t ack_command, uint32_t *ack_offset) {
   int attempt;
 
-  for (attempt = 0; attempt < PUT_RETRIES; ++attempt) {
+  for (attempt = 0; attempt < FILE_RETRIES; ++attempt) {
     if (send_packet(sock, dest_mac_addr, pkt_type, payload, payload_len) < 0) {
       return -1;
     }
@@ -92,6 +92,85 @@ static int send_with_ack(struct RawSocket *sock, const uint8_t *dest_mac_addr,
   }
 
   fprintf(stderr, "timed out waiting for file-transfer ACK\n");
+  return -1;
+}
+
+static int recv_file_get_data(struct RawSocket *sock,
+                              const uint8_t *dest_mac_addr,
+                              uint32_t transfer_id, uint32_t offset,
+                              uint8_t *data, uint16_t *count) {
+  uint8_t buf[ETH_FRAME_LEN];
+  ssize_t received;
+
+  for (;;) {
+    fd_set fds;
+    struct timeval tv;
+
+    FD_ZERO(&fds);
+    FD_SET(sock->sock_fd, &fds);
+    tv.tv_sec = ACK_TIMEOUT_SEC;
+    tv.tv_usec = 0;
+
+    if (select(sock->sock_fd + 1, &fds, NULL, NULL, &tv) <= 0) {
+      return -1;
+    }
+
+    received = recv(sock->sock_fd, buf, sizeof(buf), 0);
+    if (received < (ssize_t)(sizeof(struct ether_header) +
+                             sizeof(struct ProtocolHeader) +
+                             sizeof(struct FileGetData))) {
+      continue;
+    }
+
+    const struct ether_header *eh = (const struct ether_header *)buf;
+    const struct ProtocolHeader *ph = (const struct ProtocolHeader *)(eh + 1);
+    const struct FileGetData *resp = (const struct FileGetData *)(ph + 1);
+    uint16_t payload_len = ntohs(ph->payload_len);
+    uint16_t resp_count = ntohs(resp->count);
+
+    if (memcmp(eh->ether_shost, dest_mac_addr, ETH_ALEN) ||
+        memcmp(eh->ether_dhost, sock->if_addr, ETH_ALEN) ||
+        ntohl(ph->signature) != PACKET_SIGNATURE ||
+        ntohl(ph->session_id) != sock->session_id ||
+        ntohs(ph->pkt_type) != V1_FILE_GET_DATA ||
+        payload_len < sizeof(*resp) ||
+        ntohl(resp->transfer_id) != transfer_id ||
+        ntohl(resp->offset) != offset) {
+      continue;
+    }
+
+    if (ntohs(resp->status) != FILE_ACK_OK ||
+        resp_count > FILE_TRANSFER_CHUNK_BYTES ||
+        payload_len < sizeof(*resp) + resp_count) {
+      return -1;
+    }
+
+    memcpy(data, resp + 1, resp_count);
+    *count = resp_count;
+    return 0;
+  }
+}
+
+static int send_with_data_response(struct RawSocket *sock,
+                                   const uint8_t *dest_mac_addr,
+                                   const struct FileGetDataReq *req,
+                                   uint32_t transfer_id, uint32_t offset,
+                                   uint8_t *data, uint16_t *count) {
+  int attempt;
+
+  for (attempt = 0; attempt < FILE_RETRIES; ++attempt) {
+    if (send_packet(sock, dest_mac_addr, V1_FILE_GET_DATA_REQ, req,
+                    sizeof(*req)) < 0) {
+      return -1;
+    }
+
+    if (!recv_file_get_data(sock, dest_mac_addr, transfer_id, offset, data,
+                            count)) {
+      return 0;
+    }
+  }
+
+  fprintf(stderr, "timed out waiting for file-transfer data\n");
   return -1;
 }
 
@@ -116,7 +195,7 @@ int file_transfer_put(struct RawSocket *sock, const uint8_t *dest_mac_addr,
                       const char *local_path, const char *remote_path) {
   struct stat st;
   FILE *fp;
-  uint32_t transfer_id = make_transfer_id(sock);
+  uint32_t transfer_id = make_transfer_id(sock, 0x66554c45);
   uint32_t offset = 0;
   uint32_t ack_offset = 0;
   size_t n;
@@ -205,5 +284,87 @@ int file_transfer_put(struct RawSocket *sock, const uint8_t *dest_mac_addr,
   }
 
   printf("upload complete\n");
+  return 0;
+}
+
+int file_transfer_get(struct RawSocket *sock, const uint8_t *dest_mac_addr,
+                      const char *remote_path, const char *local_path) {
+  FILE *fp;
+  uint32_t transfer_id = make_transfer_id(sock, 0x47455421);
+  uint32_t offset = 0;
+  uint32_t file_size = 0;
+  uint32_t ack_offset = 0;
+
+  if (validate_remote_name(remote_path)) {
+    return -1;
+  }
+
+  struct FileGetBegin begin;
+  memset(&begin, 0, sizeof(begin));
+  begin.transfer_id = htonl(transfer_id);
+  snprintf(begin.filename, sizeof(begin.filename), "%s", remote_path);
+
+  printf("download: %s -> %s\n", remote_path, local_path);
+
+  if (send_with_ack(sock, dest_mac_addr, V1_FILE_GET_BEGIN, &begin,
+                    sizeof(begin), transfer_id, FILE_ACK_BEGIN,
+                    &ack_offset)) {
+    return -1;
+  }
+  file_size = ack_offset;
+
+  fp = fopen(local_path, "wb");
+  if (!fp) {
+    perror(local_path);
+    return -1;
+  }
+
+  while (offset < file_size) {
+    uint8_t chunk[FILE_TRANSFER_CHUNK_BYTES];
+    uint16_t count;
+    uint32_t remaining = file_size - offset;
+    struct FileGetDataReq req;
+
+    count = remaining > FILE_TRANSFER_CHUNK_BYTES
+                ? FILE_TRANSFER_CHUNK_BYTES
+                : remaining;
+    req.transfer_id = htonl(transfer_id);
+    req.offset = htonl(offset);
+    req.count = htons(count);
+
+    if (send_with_data_response(sock, dest_mac_addr, &req, transfer_id, offset,
+                                chunk, &count) ||
+        count == 0 || count > remaining) {
+      fclose(fp);
+      return -1;
+    }
+
+    if (fwrite(chunk, 1, count, fp) != count) {
+      perror(local_path);
+      fclose(fp);
+      return -1;
+    }
+
+    offset += count;
+    printf("\r%lu/%lu bytes", (unsigned long)offset,
+           (unsigned long)file_size);
+    fflush(stdout);
+  }
+
+  if (fclose(fp)) {
+    perror(local_path);
+    return -1;
+  }
+
+  printf("\n");
+
+  struct FileGetEnd end;
+  end.transfer_id = htonl(transfer_id);
+  if (send_with_ack(sock, dest_mac_addr, V1_FILE_GET_END, &end, sizeof(end),
+                    transfer_id, FILE_ACK_END, &ack_offset)) {
+    return -1;
+  }
+
+  printf("download complete\n");
   return 0;
 }

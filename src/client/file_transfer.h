@@ -13,4 +13,7 @@
 int file_transfer_put(struct RawSocket *sock, const uint8_t *dest_mac_addr,
                       const char *local_path, const char *remote_path);
 
+int file_transfer_get(struct RawSocket *sock, const uint8_t *dest_mac_addr,
+                      const char *remote_path, const char *local_path);
+
 #endif // __RMTDOS_CLIENT_FILE_TRANSFER_H

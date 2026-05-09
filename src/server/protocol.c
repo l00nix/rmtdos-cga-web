@@ -184,6 +184,9 @@ void protocol_process() {
         case V1_FILE_PUT_BEGIN:
         case V1_FILE_PUT_DATA:
         case V1_FILE_PUT_END:
+        case V1_FILE_GET_BEGIN:
+        case V1_FILE_GET_DATA_REQ:
+        case V1_FILE_GET_END:
           file_transfer_handle_packet(buffer);
           break;
       }

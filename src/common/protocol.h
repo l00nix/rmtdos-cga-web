@@ -25,7 +25,7 @@
 #endif
 
 // Our version info, for display purposes.
-#define RMTDOS_VERSION "rmtdos-cga-web v0.1"
+#define RMTDOS_VERSION "rmtdos-cga-web v0.2"
 
 // 32-bit signature sent in every packet (network byte order).
 // Initially picked at random via `uuidgen`.  Has no meaning.
@@ -90,6 +90,22 @@ enum PKT_TYPE {
   // Server -> Client
   // Acknowledges one file-transfer operation.
   V1_FILE_ACK = 12,
+
+  // Client -> Server
+  // Begin download of one DOS file.
+  V1_FILE_GET_BEGIN = 13,
+
+  // Client -> Server
+  // Request one chunk of a DOS file.
+  V1_FILE_GET_DATA_REQ = 14,
+
+  // Server -> Client
+  // One chunk of downloaded file data.
+  V1_FILE_GET_DATA = 15,
+
+  // Client -> Server
+  // Finish download of one DOS file.
+  V1_FILE_GET_END = 16,
 };
 
 #if NEED_PRAGMA_PACK
@@ -196,6 +212,33 @@ struct FilePutData {
 struct FilePutEnd {
   uint32_t transfer_id; // network byte order
   uint32_t size;        // network byte order
+};
+
+// V1_FILE_GET_BEGIN: Client -> Server
+struct FileGetBegin {
+  uint32_t transfer_id; // network byte order
+  char filename[FILE_TRANSFER_NAME_BYTES];
+};
+
+// V1_FILE_GET_DATA_REQ: Client -> Server
+struct FileGetDataReq {
+  uint32_t transfer_id; // network byte order
+  uint32_t offset;      // network byte order
+  uint16_t count;       // network byte order
+};
+
+// V1_FILE_GET_DATA: Server -> Client
+// Followed by `count` bytes of file data.
+struct FileGetData {
+  uint32_t transfer_id; // network byte order
+  uint32_t offset;      // network byte order
+  uint16_t count;       // network byte order
+  uint16_t status;      // FILE_ACK_STATUS, network byte order
+};
+
+// V1_FILE_GET_END: Client -> Server
+struct FileGetEnd {
+  uint32_t transfer_id; // network byte order
 };
 
 // V1_FILE_ACK: Server -> Client

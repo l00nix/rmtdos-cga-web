@@ -52,6 +52,8 @@ graphics viewer.
    `http://127.0.0.1:8080/`.
 1. Experimental: run with `--put LOCAL REMOTE` and `-d` to upload one file to
    the DOS machine.
+1. Experimental: run with `--get REMOTE LOCAL` and `-d` to download one file
+   from the DOS machine.
 1. Run with `-h` to see usage and command line options.
 
 ## Usage
@@ -151,10 +153,13 @@ Wireshark filter `"eth.type == 0x80ab"`.
 
 ## File Transfer
 
-Experimental upload support can copy one file from Linux to the DOS current
-directory.  Load the current `cgaweb.com` TSR on the DOS machine normally; no
-special DOS-side flag is required for receiving files.  The first version is
-intentionally simple and requires the target DOS machine's MAC address:
+Experimental file-transfer support can copy one file at a time between Linux
+and the DOS current directory.  Load the current `cgaweb.com` TSR on the DOS
+machine normally; no special DOS-side flag is required for file transfer.  The
+first version is intentionally simple and requires the target DOS machine's MAC
+address.
+
+Upload from Linux to DOS:
 
 ```
 sudo ./rmtdos-cga-web-client -i enp2s0 -d 00:07:40:19:1a:4d \
@@ -165,17 +170,25 @@ Successful upload from Linux to the DOS machine:
 
 ![Successful file upload with --put](/images/cgaweb_put.png)
 
-File upload uses the same raw Ethernet transport as the remote screen session.
-DOS writes are processed from the DOS idle interrupt, so uploads work best while
-the DOS machine is sitting at the command prompt or otherwise calling DOS idle.
+Download from DOS to Linux:
 
-The current upload path is stop-and-wait, one file at a time, and the remote
-filename must fit in 63 characters.  Download support is not implemented yet.
+```
+sudo ./rmtdos-cga-web-client -i enp2s0 -d 00:07:40:19:1a:4d \
+  --get STARTECH.TXT ./startech-from-dos.txt
+```
+
+File transfer uses the same raw Ethernet transport as the remote screen
+session.  DOS reads and writes are processed from the DOS idle interrupt, so
+transfers work best while the DOS machine is sitting at the command prompt or
+otherwise calling DOS idle.
+
+The current transfer path is stop-and-wait, one file at a time, and the remote
+filename must fit in 63 characters.
 The `-d` option shown by `cgaweb.com -h` is a debug-overlay flag inherited from
 the original TSR code; normal builds do not need it.
 
 ## Possible Future Work
 
-Possible next file-transfer steps include download support, directory listings,
-and a friendlier target picker that can upload to the selected ncurses session
-without typing a MAC address.
+Possible next file-transfer steps include directory listings, wildcard/batch
+transfers, and a friendlier target picker that can transfer files with the
+selected ncurses session without typing a MAC address.
