@@ -25,7 +25,7 @@
 #endif
 
 // Our version info, for display purposes.
-#define RMTDOS_VERSION "rmtdos-cga-web v0.2"
+#define RMTDOS_VERSION "rmtdos-cga-web v0.4.0"
 
 // 32-bit signature sent in every packet (network byte order).
 // Initially picked at random via `uuidgen`.  Has no meaning.
@@ -106,6 +106,22 @@ enum PKT_TYPE {
   // Client -> Server
   // Finish download of one DOS file.
   V1_FILE_GET_END = 16,
+
+  // Client -> Server
+  // Begin listing one DOS directory path.
+  V1_DIR_LIST_BEGIN = 17,
+
+  // Client -> Server
+  // Request a page of serialized DOS directory entries.
+  V1_DIR_LIST_DATA_REQ = 18,
+
+  // Server -> Client
+  // One page of serialized DOS directory entries.
+  V1_DIR_LIST_DATA = 19,
+
+  // Client -> Server
+  // Finish directory listing.
+  V1_DIR_LIST_END = 20,
 };
 
 #if NEED_PRAGMA_PACK
@@ -247,6 +263,46 @@ struct FileAck {
   uint16_t command;     // FILE_ACK_COMMAND, network byte order
   uint16_t status;      // FILE_ACK_STATUS, network byte order
   uint32_t offset;      // next expected offset, network byte order
+};
+
+#define RMTDOS_PATH_BYTES 128
+#define RMTDOS_DIR_ENTRY_NAME_BYTES 64
+
+// V1_DIR_LIST_BEGIN: Client -> Server
+struct DirListBegin {
+  uint32_t request_id; // network byte order
+  char path[RMTDOS_PATH_BYTES];
+};
+
+// V1_DIR_LIST_DATA_REQ: Client -> Server
+struct DirListDataReq {
+  uint32_t request_id;  // network byte order
+  uint16_t start_index; // network byte order
+  uint16_t max_entries; // network byte order
+};
+
+// One serialized DOS directory entry.
+struct DirListEntry {
+  uint8_t attributes;
+  uint8_t reserved;
+  uint32_t size;     // network byte order
+  uint16_t dos_date; // network byte order
+  uint16_t dos_time; // network byte order
+  char name[RMTDOS_DIR_ENTRY_NAME_BYTES];
+};
+
+// V1_DIR_LIST_DATA: Server -> Client
+// Followed by `entry_count` DirListEntry records.
+struct DirListData {
+  uint32_t request_id;  // network byte order
+  uint16_t start_index; // network byte order
+  uint16_t entry_count; // network byte order
+  uint16_t status;      // FILE_ACK_STATUS, network byte order
+};
+
+// V1_DIR_LIST_END: Client -> Server
+struct DirListEnd {
+  uint32_t request_id; // network byte order
 };
 
 // Bit flags for `Keystroke.flags`

@@ -14,7 +14,7 @@ OUTDIR=out
 TMPDIR=tmp
 
 # TODO: Why is this needed?  Why is "ld86" unable to find "crt0.o" on its own?
-LD86_LIBDIR=/usr/lib64/bcc
+LD86_LIBDIR?=$(shell test -d /usr/lib64/bcc && echo /usr/lib64/bcc || echo /usr/lib/bcc)
 
 # The "client" runs on Linux.
 CLIENT_BIN=$(OUTDIR)/rmtdos-cga-web-client

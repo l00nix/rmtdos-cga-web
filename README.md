@@ -54,6 +54,8 @@ graphics viewer.
    the DOS machine.
 1. Experimental: run with `--get REMOTE LOCAL` and `-d` to download one file
    from the DOS machine.
+1. Experimental: responds to directory-listing protocol packets used by
+   `rmtdos-file-commander`.
 1. Run with `-h` to see usage and command line options.
 
 ## Usage
@@ -183,12 +185,23 @@ transfers work best while the DOS machine is sitting at the command prompt or
 otherwise calling DOS idle.
 
 The current transfer path is stop-and-wait, one file at a time, and the remote
-filename must fit in 63 characters.
+filename/path in file-transfer requests must fit in 63 characters.
 The `-d` option shown by `cgaweb.com -h` is a debug-overlay flag inherited from
 the original TSR code; normal builds do not need it.
 
+## Directory Listing Protocol
+
+`cgaweb.com` also supports the first file-manager protocol extension for
+`rmtdos-file-commander`: `V1_DIR_LIST_BEGIN`, `V1_DIR_LIST_DATA_REQ`,
+`V1_DIR_LIST_DATA`, and `V1_DIR_LIST_END`.
+
+The server performs DOS `findfirst` / `findnext` work from the DOS idle path and
+returns paged directory entries. This keeps the existing remote session,
+graphics view, upload, and download packet types backward-compatible while
+allowing a separate Linux commander client to browse DOS directories.
+
 ## Possible Future Work
 
-Possible next file-transfer steps include directory listings, wildcard/batch
-transfers, and a friendlier target picker that can transfer files with the
-selected ncurses session without typing a MAC address.
+Possible next file-transfer steps include remote mkdir/delete/rename,
+wildcard/batch transfers, and a friendlier target picker that can transfer files
+with the selected ncurses session without typing a MAC address.
