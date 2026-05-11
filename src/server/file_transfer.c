@@ -386,6 +386,14 @@ static uint16_t collect_dir_entries(uint16_t *status) {
   return count;
 }
 
+static uint32_t dos_get_file_size(const char *filename) {
+  dos_set_dta(g_file.dta);
+  if (dos_find_first(filename)) {
+    return 0xffffffffUL;
+  }
+  return dta_get_u32(26);
+}
+
 void file_transfer_init() {
   memset(&g_file, 0, sizeof(g_file));
   g_file.handle = -1;
@@ -659,9 +667,8 @@ void file_transfer_process_idle() {
       g_file.expected_offset = 0;
       g_file.size = 0;
       if (g_file.handle >= 0) {
-        g_file.size = dos_seek_file(g_file.handle, 2, 0);
-        if (g_file.size != 0xffffffffUL &&
-            dos_seek_file(g_file.handle, 0, 0) != 0xffffffffUL) {
+        g_file.size = dos_get_file_size(g_file.filename);
+        if (g_file.size != 0xffffffffUL) {
           g_file.active = 1;
           g_file.mode = FILE_MODE_GET;
         }
