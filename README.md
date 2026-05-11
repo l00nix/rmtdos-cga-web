@@ -136,6 +136,12 @@ Press `CTRL-]` or `ALT-ESCAPE` to exit `rmtdos-cga-web-client`.  `CTRL-]` is
 useful when running the client over SSH from a Windows host, where `ALT-ESCAPE`
 is commonly captured by Windows to cycle open windows.
 
+For DOS applications that use menu accelerators, terminal `Alt+letter`
+sequences are translated to DOS Alt-modified keystrokes.  A bare tap of `Alt`
+usually is not delivered by terminal emulators or SSH, so use the application's
+menu accelerator such as `Alt+F` or its keyboard alternative such as `F10` when
+available.
+
 Use `ALT-X` to exit `vga_demo.com`, and `ALT-V` to cycle its video mode.  Those
 are DOS-side demo keys sent through the remote keyboard path; they do not exit
 the Linux client.

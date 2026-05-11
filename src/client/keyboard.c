@@ -483,10 +483,31 @@ static const struct Key keymap[WCH_MAX] = {
     [0x244] = {0x4a, '-', 0, "sub"},           // keypad "-"
 };
 
+static int send_key_from_wch(struct RawSocket *rs, wint_t wch,
+                             uint16_t extra_flags) {
+  if ((wch > 0) && (wch < WCH_MAX) &&
+      (keymap[wch].bios || keymap[wch].ascii)) {
+    const struct Keystroke ks = {
+        .bios_scan_code = keymap[wch].bios,
+        .ascii_value = extra_flags & KS_ALT ? 0 : keymap[wch].ascii,
+        .flags_17 = keymap[wch].flags | extra_flags,
+    };
+
+    send_keystrokes(rs, g_active_host->if_addr, 1, &ks);
+
+    mvwprintw(g_session_window, 53, 1, "%*c", 30, ' ');
+    return 0;
+  }
+
+  return -1;
+}
+
 void process_stdin_session_mode(struct RawSocket *rs) {
   wint_t wch = 0;
+  int status;
 
-  switch (wget_wch(g_session_window, &wch)) {
+  status = wget_wch(g_session_window, &wch);
+  switch (status) {
     case KEY_CODE_YES:
       mvwprintw(g_session_window, 52, 1, "KEY_CODE_YES: %04x", wch);
       break;
@@ -507,19 +528,19 @@ void process_stdin_session_mode(struct RawSocket *rs) {
     return;
   }
 
-  if ((wch > 0) && (wch < WCH_MAX)) {
-    const struct Keystroke ks = {
-        .bios_scan_code = keymap[wch].bios,
-        .ascii_value = keymap[wch].ascii,
-        .flags_17 = keymap[wch].flags,
-    };
+  if (status == OK && wch == 0x1b) {
+    wint_t alt_wch = 0;
+    int alt_status = wget_wch(g_session_window, &alt_wch);
 
-    if (keymap[wch].bios || keymap[wch].ascii) {
-      send_keystrokes(rs, g_active_host->if_addr, 1, &ks);
-
-      mvwprintw(g_session_window, 53, 1, "%*c", 30, ' ');
+    if ((alt_status == OK || alt_status == KEY_CODE_YES) &&
+        !IS_EXIT_WCH_CODE(alt_wch) &&
+        !send_key_from_wch(rs, alt_wch, KS_ALT)) {
       return;
     }
+  }
+
+  if (!send_key_from_wch(rs, wch, 0)) {
+    return;
   }
 
   mvwprintw(g_session_window, 53, 1, "Unmapped wch: %04x", wch);
