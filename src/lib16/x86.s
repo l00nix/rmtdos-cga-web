@@ -203,33 +203,37 @@ _x86_read_bios_tick_clock:
 
 ; // int x86_inject_keystroke(uint8_t bios_scan_code, uint8_t ascii_value, uint8_t flags_17);
 .global _x86_inject_keystroke
-_x86_inject_keystroke:
-  push    bp
-  mov     bp, sp
-  push    ds
-  push    cx
-
-  mov     ax, #$0040
-  mov     ds, ax
-  mov     cx, [bp + 8]           ; CX = flags_17
-  and     cl, #$0f               ; Ensure that we only have the bottom nibble.
-  mov     al, [$17]              ; AX = Keyboard flag byte #0
-  and     al, #$f0               ; Keep the upper nibble.
-  or      al, cl                 ; Compose new keyboard flags byte.
+  _x86_inject_keystroke:
+    push    bp
+    mov     bp, sp
+    push    ds
+    push    cx
+    push    bx
+  
+    mov     ax, #$0040
+    mov     ds, ax
+    mov     bl, [$17]              ; Preserve keyboard flag byte #0.
+    mov     cx, [bp + 8]           ; CX = flags_17
+    and     cl, #$0f               ; Ensure that we only have the bottom nibble.
+    mov     al, [$17]              ; AX = Keyboard flag byte #0
+    and     al, #$f0               ; Keep the upper nibble.
+    or      al, cl                 ; Compose new keyboard flags byte.
   mov     [$17], al
 
   mov     ax, [bp + 4]           ; AX = bios_scan_code (need in CH)
   mov     cx, [bp + 6]           ; CX = ascii_value (need in CL)
   mov     ch, al
 
-  mov     ax, #$0500             ; http://www.ctyme.com/intr/rb-1761.htm
-  int     $16                    ; AL = 0 on success, 1 on fail.
-
-  and     ax, #1
-  xor     ax, #1
-
-  pop     cx
-  pop     ds
-  pop     bp
+    mov     ax, #$0500             ; http://www.ctyme.com/intr/rb-1761.htm
+    int     $16                    ; AL = 0 on success, 1 on fail.
+  
+    mov     [$17], bl              ; Do not leave CTRL/ALT/SHIFT stuck on.
+    and     ax, #1
+    xor     ax, #1
+  
+    pop     bx
+    pop     cx
+    pop     ds
+    pop     bp
 
   ret                            ; AX = 0 on fail, 1 on success.

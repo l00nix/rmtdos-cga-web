@@ -25,7 +25,7 @@
 #endif
 
 // Our version info, for display purposes.
-#define RMTDOS_VERSION "rmtdos-cga-web v0.4.2"
+#define RMTDOS_VERSION "rmtdos-cga-web v0.4.3"
 
 // 32-bit signature sent in every packet (network byte order).
 // Initially picked at random via `uuidgen`.  Has no meaning.
