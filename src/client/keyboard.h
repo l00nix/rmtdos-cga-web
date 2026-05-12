@@ -19,5 +19,6 @@
 void process_stdin_session_mode(struct RawSocket *rs);
 
 void dump_keyboard_table(FILE *fp);
+void run_keyboard_diagnostic(FILE *fp);
 
 #endif // __RMTDOS_CLIENT_KEYBOARD_H

@@ -589,3 +589,106 @@ void dump_keyboard_table(FILE *fp) {
 
   fprintf(fp, "\n");
 }
+
+static const char *status_name(int status) {
+  switch (status) {
+    case OK:
+      return "OK";
+    case KEY_CODE_YES:
+      return "KEY_CODE_YES";
+    case ERR:
+      return "ERR";
+  }
+
+  return "UNKNOWN";
+}
+
+static void log_key_event(FILE *fp, int index, int status, wint_t wch) {
+  const char *curses_name = NULL;
+
+  if (status == KEY_CODE_YES) {
+    curses_name = keyname((int)wch);
+  }
+
+  fprintf(fp, "%04d status=%s wch=0x%04x dec=%u",
+          index, status_name(status), (unsigned)wch, (unsigned)wch);
+
+  if (curses_name) {
+    fprintf(fp, " keyname=%s", curses_name);
+  }
+
+  if ((wch > 0) && (wch < WCH_MAX) &&
+      (keymap[wch].bios || keymap[wch].ascii)) {
+    fprintf(fp, " mapped_bios=0x%02x mapped_ascii=0x%02x flags=0x%x name=%s",
+            keymap[wch].bios, keymap[wch].ascii, keymap[wch].flags,
+            keymap[wch].name ? keymap[wch].name : "");
+  } else {
+    fprintf(fp, " mapped=<none>");
+  }
+
+  fprintf(fp, "\n");
+  fflush(fp);
+}
+
+void run_keyboard_diagnostic(FILE *fp) {
+  int index = 0;
+  int rows;
+  int cols;
+
+  initscr();
+  raw();
+  noecho();
+  keypad(stdscr, TRUE);
+  meta(stdscr, TRUE);
+  nodelay(stdscr, FALSE);
+  curs_set(0);
+
+  getmaxyx(stdscr, rows, cols);
+  (void)cols;
+  mvprintw(0, 0, "rmtdos keyboard diagnostic");
+  mvprintw(2, 0, "Press keys to log ncurses status/wch and rmtdos mapping.");
+  mvprintw(3, 0, "Use CTRL-] or F12 to exit. Nothing is sent to DOS.");
+  mvprintw(rows - 1, 0, "log events: 0");
+  refresh();
+
+  fprintf(fp, "rmtdos keyboard diagnostic\n");
+  fprintf(fp, "exit keys: CTRL-] or F12\n");
+  fflush(fp);
+
+  for (;;) {
+    wint_t wch = 0;
+    int status = wget_wch(stdscr, &wch);
+
+    if (status == ERR) {
+      continue;
+    }
+
+    ++index;
+    log_key_event(fp, index, status, wch);
+
+    move(6, 0);
+    clrtobot();
+    mvprintw(6, 0, "last: status=%s wch=0x%04x dec=%u",
+             status_name(status), (unsigned)wch, (unsigned)wch);
+    if (status == KEY_CODE_YES && keyname((int)wch)) {
+      mvprintw(7, 0, "keyname: %s", keyname((int)wch));
+    }
+    if ((wch > 0) && (wch < WCH_MAX) &&
+        (keymap[wch].bios || keymap[wch].ascii)) {
+      mvprintw(8, 0, "mapped: bios=0x%02x ascii=0x%02x flags=0x%x name=%s",
+               keymap[wch].bios, keymap[wch].ascii, keymap[wch].flags,
+               keymap[wch].name ? keymap[wch].name : "");
+    } else {
+      mvprintw(8, 0, "mapped: <none>");
+    }
+    mvprintw(rows - 1, 0, "log events: %d", index);
+    refresh();
+
+    if (wch == EXIT_CTRL_RBRACKET_WCH_CODE ||
+        (status == KEY_CODE_YES && wch == KEY_F(12))) {
+      break;
+    }
+  }
+
+  endwin();
+}

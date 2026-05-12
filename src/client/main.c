@@ -338,11 +338,13 @@ static const char *DEFAULT_ETH_DEV = "eth0";
 enum LongOption {
   OPT_PUT = 1000,
   OPT_GET,
+  OPT_KEY_TEST,
 };
 
 static void print_usage(const char *progname) {
   printf("usage: %s [-d dest-addr] [-e type] [-h] [-i eth_dev] [-k] "
-         "[--put local remote] [--get remote local] [-w] [-W addr[:port]]\n",
+         "[--put local remote] [--get remote local] [--key-test file] "
+         "[-w] [-W addr[:port]]\n",
          progname);
   printf("  -d  Destination MAC address (xx:xx:xx:xx:xx:xx).\n");
   printf("  -e  Ethertype as 4 hexadecimal digits (default: %04x).\n",
@@ -351,6 +353,7 @@ static void print_usage(const char *progname) {
   printf("  -i  Name of local ethernet device (default: %s).\n",
          DEFAULT_ETH_DEV);
   printf("  -k  Dump keyboard layout to text file for debugging.\n");
+  printf("  --key-test file  Log local terminal key codes without connecting.\n");
   printf("  --put local remote  Upload one file to the DOS current directory.\n");
   printf("  --get remote local  Download one file from the DOS current directory.\n");
   printf("  -w  Serve CGA graphics view at http://%s:%d/.\n",
@@ -414,11 +417,13 @@ int main(int argc, char **argv) {
   const char *put_remote_path = NULL;
   const char *get_remote_path = NULL;
   const char *get_local_path = NULL;
+  const char *key_test_path = NULL;
   int i;
   int opt;
   static const struct option long_options[] = {
       {"put", no_argument, NULL, OPT_PUT},
       {"get", no_argument, NULL, OPT_GET},
+      {"key-test", required_argument, NULL, OPT_KEY_TEST},
       {NULL, 0, NULL, 0},
   };
 
@@ -438,6 +443,10 @@ int main(int argc, char **argv) {
 
       case OPT_GET:
         get_mode = 1;
+        break;
+
+      case OPT_KEY_TEST:
+        key_test_path = optarg;
         break;
 
       case 'h':
@@ -492,6 +501,27 @@ int main(int argc, char **argv) {
     fprintf(stderr, "--put and --get cannot be used together\n");
     print_usage(argv[0]);
     return EXIT_FAILURE;
+  }
+
+  if (key_test_path) {
+    FILE *fp;
+
+    if (put_mode || get_mode || optind < argc) {
+      fprintf(stderr, "--key-test cannot be combined with other actions\n");
+      print_usage(argv[0]);
+      return EXIT_FAILURE;
+    }
+
+    fp = fopen(key_test_path, "w");
+    if (!fp) {
+      perror(key_test_path);
+      return EXIT_FAILURE;
+    }
+
+    run_keyboard_diagnostic(fp);
+    fclose(fp);
+    printf("keyboard diagnostic written to %s\n", key_test_path);
+    return EXIT_SUCCESS;
   }
 
   if (put_mode) {
