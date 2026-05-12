@@ -258,6 +258,27 @@ static void dos_set_dta(uint8_t *dta) {
   x86_call(0x21, &regs);
 }
 
+static void dos_get_dta(uint16_t *segment, uint16_t *offset) {
+  struct CpuRegs regs;
+
+  x86_reset_regs(&regs);
+  regs.u.b.ah = 0x2f;
+  x86_call(0x21, &regs);
+
+  *segment = regs.es;
+  *offset = regs.u.w.bx;
+}
+
+static void dos_restore_dta(uint16_t segment, uint16_t offset) {
+  struct CpuRegs regs;
+
+  x86_reset_regs(&regs);
+  regs.u.b.ah = 0x1a;
+  regs.ds = segment;
+  regs.u.w.dx = offset;
+  x86_call(0x21, &regs);
+}
+
 static int dos_find_first(const char *pattern) {
   struct CpuRegs regs;
 
@@ -353,6 +374,8 @@ static uint16_t collect_dir_entries(uint16_t *status) {
   uint16_t seen = 0;
   uint16_t count = 0;
   uint16_t max_entries = g_file.dir_max_entries;
+  uint16_t saved_dta_segment;
+  uint16_t saved_dta_offset;
 
   if (max_entries > DIR_LIST_PAGE_ENTRIES) {
     max_entries = DIR_LIST_PAGE_ENTRIES;
@@ -364,8 +387,10 @@ static uint16_t collect_dir_entries(uint16_t *status) {
     return 0;
   }
 
+  dos_get_dta(&saved_dta_segment, &saved_dta_offset);
   dos_set_dta(g_file.dta);
   if (dos_find_first(pattern)) {
+    dos_restore_dta(saved_dta_segment, saved_dta_offset);
     return 0;
   }
 
@@ -383,15 +408,25 @@ static uint16_t collect_dir_entries(uint16_t *status) {
     ++seen;
   } while (count < max_entries && !dos_find_next());
 
+  dos_restore_dta(saved_dta_segment, saved_dta_offset);
   return count;
 }
 
 static uint32_t dos_get_file_size(const char *filename) {
+  uint16_t saved_dta_segment;
+  uint16_t saved_dta_offset;
+  uint32_t size;
+
+  dos_get_dta(&saved_dta_segment, &saved_dta_offset);
   dos_set_dta(g_file.dta);
   if (dos_find_first(filename)) {
+    dos_restore_dta(saved_dta_segment, saved_dta_offset);
     return 0xffffffffUL;
   }
-  return dta_get_u32(26);
+
+  size = dta_get_u32(26);
+  dos_restore_dta(saved_dta_segment, saved_dta_offset);
+  return size;
 }
 
 void file_transfer_init() {
