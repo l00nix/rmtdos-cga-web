@@ -483,108 +483,20 @@ static const struct Key keymap[WCH_MAX] = {
     [0x244] = {0x4a, '-', 0, "sub"},           // keypad "-"
 };
 
-static int send_key(struct RawSocket *rs, uint8_t bios, uint8_t ascii,
-                    uint16_t flags) {
-  const struct Keystroke ks = {
-      .bios_scan_code = bios,
-      .ascii_value = ascii,
-      .flags_17 = flags,
-  };
-
-  send_keystrokes(rs, g_active_host->if_addr, 1, &ks);
-
-  mvwprintw(g_session_window, 53, 1, "%*c", 30, ' ');
-  return 0;
-}
-
-static int send_plain_arrow_from_wch(struct RawSocket *rs, wint_t wch) {
-  switch (wch) {
-    case 0x102:
-    case 0x150:
-    case 0x20c:
-    case 0x20e:
-      return send_key(rs, SCAN_DOWN, 0, 0);
-
-    case 0x103:
-    case 0x151:
-    case 0x235:
-    case 0x237:
-      return send_key(rs, SCAN_UP, 0, 0);
-
-    case 0x104:
-    case 0x189:
-    case 0x220:
-    case 0x222:
-      return send_key(rs, SCAN_LEFT, 0, 0);
-
-    case 0x105:
-    case 0x192:
-    case 0x22f:
-    case 0x231:
-      return send_key(rs, SCAN_RIGHT, 0, 0);
-  }
-
-  return -1;
-}
-
-static int send_plain_arrow_from_final(struct RawSocket *rs, wint_t final) {
-  switch (final) {
-    case 'A':
-      return send_key(rs, SCAN_UP, 0, 0);
-    case 'B':
-      return send_key(rs, SCAN_DOWN, 0, 0);
-    case 'C':
-      return send_key(rs, SCAN_RIGHT, 0, 0);
-    case 'D':
-      return send_key(rs, SCAN_LEFT, 0, 0);
-  }
-
-  return -1;
-}
-
-static int send_escape_sequence_key(struct RawSocket *rs, wint_t second) {
-  wint_t ch = 0;
-
-  if (second == 'O') {
-    if (wget_wch(g_session_window, &ch) == ERR) {
-      return -1;
-    }
-    return send_plain_arrow_from_final(rs, ch);
-  }
-
-  if (second != '[') {
-    return -1;
-  }
-
-  if (wget_wch(g_session_window, &ch) == ERR) {
-    return -1;
-  }
-
-  if (!send_plain_arrow_from_final(rs, ch)) {
-    return 0;
-  }
-
-  // Handle common modified cursor sequences such as ESC [ 1 ; 5 C.
-  while (ch != ERR && ch != 'A' && ch != 'B' && ch != 'C' && ch != 'D') {
-    if (wget_wch(g_session_window, &ch) == ERR) {
-      return -1;
-    }
-  }
-
-  return send_plain_arrow_from_final(rs, ch);
-}
-
 static int send_key_from_wch(struct RawSocket *rs, wint_t wch,
                              uint16_t extra_flags) {
-  if (!extra_flags && !send_plain_arrow_from_wch(rs, wch)) {
-    return 0;
-  }
-
   if ((wch > 0) && (wch < WCH_MAX) &&
       (keymap[wch].bios || keymap[wch].ascii)) {
-    return send_key(rs, keymap[wch].bios,
-                    extra_flags & KS_ALT ? 0 : keymap[wch].ascii,
-                    keymap[wch].flags | extra_flags);
+    const struct Keystroke ks = {
+        .bios_scan_code = keymap[wch].bios,
+        .ascii_value = extra_flags & KS_ALT ? 0 : keymap[wch].ascii,
+        .flags_17 = keymap[wch].flags | extra_flags,
+    };
+
+    send_keystrokes(rs, g_active_host->if_addr, 1, &ks);
+
+    mvwprintw(g_session_window, 53, 1, "%*c", 30, ' ');
+    return 0;
   }
 
   return -1;
@@ -618,19 +530,12 @@ void process_stdin_session_mode(struct RawSocket *rs) {
 
   if (status == OK && wch == 0x1b) {
     wint_t alt_wch = 0;
-    wtimeout(g_session_window, 30);
     int alt_status = wget_wch(g_session_window, &alt_wch);
-    wtimeout(g_session_window, 0);
 
-    if (alt_status == OK || alt_status == KEY_CODE_YES) {
-      if (!send_escape_sequence_key(rs, alt_wch)) {
-        return;
-      }
-
-      if (!IS_EXIT_WCH_CODE(alt_wch) &&
-          !send_key_from_wch(rs, alt_wch, KS_ALT)) {
-        return;
-      }
+    if ((alt_status == OK || alt_status == KEY_CODE_YES) &&
+        !IS_EXIT_WCH_CODE(alt_wch) &&
+        !send_key_from_wch(rs, alt_wch, KS_ALT)) {
+      return;
     }
   }
 
