@@ -26,6 +26,10 @@
 #define FILE_OP_GET_DATA_REQ 6
 #define FILE_OP_GET_END 7
 #define FILE_OP_DIR_LIST_DATA_REQ 8
+#define FILE_OP_MKDIR 9
+#define FILE_OP_DELETE 10
+#define FILE_OP_RENAME 11
+#define FILE_OP_COPY 12
 
 #define DOS_DTA_BYTES 43
 #define DIR_LIST_PAGE_ENTRIES 16
@@ -50,12 +54,36 @@ struct FileTransferState {
   uint32_t dir_request_id;
   uint16_t dir_start_index;
   uint16_t dir_max_entries;
+  uint16_t path_op_flags;
+  char target[FILE_TRANSFER_NAME_BYTES];
   char dir_path[RMTDOS_PATH_BYTES];
   uint8_t dta[DOS_DTA_BYTES];
   struct DirListEntry dir_entries[DIR_LIST_PAGE_ENTRIES];
 };
 
 static struct FileTransferState g_file;
+
+static char path_char_fold(char ch) {
+  if (ch >= 'a' && ch <= 'z') {
+    return ch - ('a' - 'A');
+  }
+  if (ch == '/') {
+    return '\\';
+  }
+  return ch;
+}
+
+static int dos_path_equal(const char *lhs, const char *rhs) {
+  while (*lhs && *rhs) {
+    if (path_char_fold(*lhs) != path_char_fold(*rhs)) {
+      return 0;
+    }
+    ++lhs;
+    ++rhs;
+  }
+
+  return *lhs == *rhs;
+}
 
 static void send_file_ack(uint16_t command, uint16_t status, uint32_t offset) {
   struct EthernetHeader *out_eh = (struct EthernetHeader *)(g_send_buffer);
@@ -222,6 +250,52 @@ static int dos_write_file(int handle, const uint8_t *data, uint16_t count) {
     return -1;
   }
   return regs.u.w.ax == count ? 0 : -1;
+}
+
+static int dos_mkdir(const char *path) {
+  struct CpuRegs regs;
+
+  x86_reset_regs(&regs);
+  regs.u.b.ah = 0x39;
+  regs.u.w.dx = (uint16_t)path;
+  x86_call(0x21, &regs);
+
+  return (regs.flags & CPU_FLAG_CARRY) ? -1 : 0;
+}
+
+static int dos_rmdir(const char *path) {
+  struct CpuRegs regs;
+
+  x86_reset_regs(&regs);
+  regs.u.b.ah = 0x3a;
+  regs.u.w.dx = (uint16_t)path;
+  x86_call(0x21, &regs);
+
+  return (regs.flags & CPU_FLAG_CARRY) ? -1 : 0;
+}
+
+static int dos_unlink(const char *path) {
+  struct CpuRegs regs;
+
+  x86_reset_regs(&regs);
+  regs.u.b.ah = 0x41;
+  regs.u.w.dx = (uint16_t)path;
+  x86_call(0x21, &regs);
+
+  return (regs.flags & CPU_FLAG_CARRY) ? -1 : 0;
+}
+
+static int dos_rename(const char *source, const char *target) {
+  struct CpuRegs regs;
+
+  x86_reset_regs(&regs);
+  regs.u.b.ah = 0x56;
+  regs.u.w.dx = (uint16_t)source;
+  regs.es = __get_ds();
+  regs.di = (uint16_t)target;
+  x86_call(0x21, &regs);
+
+  return (regs.flags & CPU_FLAG_CARRY) ? -1 : 0;
 }
 
 static void dos_close_file(int handle) {
@@ -427,6 +501,46 @@ static uint32_t dos_get_file_size(const char *filename) {
   size = dta_get_u32(26);
   dos_restore_dta(saved_dta_segment, saved_dta_offset);
   return size;
+}
+
+static int dos_copy_file(const char *source, const char *target,
+                         uint32_t *bytes_copied) {
+  int in_handle = -1;
+  int out_handle = -1;
+  int status = -1;
+  int read_count;
+
+  *bytes_copied = 0;
+  in_handle = dos_open_read_file(source);
+  if (in_handle < 0) {
+    goto done;
+  }
+
+  out_handle = dos_create_file(target);
+  if (out_handle < 0) {
+    goto done;
+  }
+
+  for (;;) {
+    read_count = dos_read_file(in_handle, g_file.chunk, sizeof(g_file.chunk));
+    if (read_count < 0) {
+      goto done;
+    }
+    if (!read_count) {
+      break;
+    }
+    if (dos_write_file(out_handle, g_file.chunk, read_count)) {
+      goto done;
+    }
+    *bytes_copied += read_count;
+  }
+
+  status = 0;
+
+done:
+  dos_close_file(out_handle);
+  dos_close_file(in_handle);
+  return status;
 }
 
 void file_transfer_init() {
@@ -636,6 +750,64 @@ void file_transfer_handle_packet(const struct Buffer *buffer) {
       g_file.mode = FILE_MODE_NONE;
       g_file.dir_request_id = 0;
     } break;
+
+    case V1_FILE_MKDIR: {
+      const struct FilePathOp *op = (const struct FilePathOp *)payload;
+      if (payload_len < sizeof(*op)) {
+        return;
+      }
+
+      remember_client(buffer);
+      g_file.transfer_id = ntohl(op->transfer_id);
+      g_file.path_op_flags = ntohs(op->flags);
+      memcpy(g_file.filename, op->path, sizeof(g_file.filename));
+      g_file.filename[sizeof(g_file.filename) - 1] = '\0';
+      g_file.pending_op = FILE_OP_MKDIR;
+    } break;
+
+    case V1_FILE_DELETE: {
+      const struct FilePathOp *op = (const struct FilePathOp *)payload;
+      if (payload_len < sizeof(*op)) {
+        return;
+      }
+
+      remember_client(buffer);
+      g_file.transfer_id = ntohl(op->transfer_id);
+      g_file.path_op_flags = ntohs(op->flags);
+      memcpy(g_file.filename, op->path, sizeof(g_file.filename));
+      g_file.filename[sizeof(g_file.filename) - 1] = '\0';
+      g_file.pending_op = FILE_OP_DELETE;
+    } break;
+
+    case V1_FILE_RENAME: {
+      const struct FileTwoPathOp *op = (const struct FileTwoPathOp *)payload;
+      if (payload_len < sizeof(*op)) {
+        return;
+      }
+
+      remember_client(buffer);
+      g_file.transfer_id = ntohl(op->transfer_id);
+      memcpy(g_file.filename, op->source, sizeof(g_file.filename));
+      g_file.filename[sizeof(g_file.filename) - 1] = '\0';
+      memcpy(g_file.target, op->target, sizeof(g_file.target));
+      g_file.target[sizeof(g_file.target) - 1] = '\0';
+      g_file.pending_op = FILE_OP_RENAME;
+    } break;
+
+    case V1_FILE_COPY: {
+      const struct FileTwoPathOp *op = (const struct FileTwoPathOp *)payload;
+      if (payload_len < sizeof(*op)) {
+        return;
+      }
+
+      remember_client(buffer);
+      g_file.transfer_id = ntohl(op->transfer_id);
+      memcpy(g_file.filename, op->source, sizeof(g_file.filename));
+      g_file.filename[sizeof(g_file.filename) - 1] = '\0';
+      memcpy(g_file.target, op->target, sizeof(g_file.target));
+      g_file.target[sizeof(g_file.target) - 1] = '\0';
+      g_file.pending_op = FILE_OP_COPY;
+    } break;
   }
 }
 
@@ -757,6 +929,43 @@ void file_transfer_process_idle() {
       x86_sti(flags);
       return;
     }
+
+    case FILE_OP_MKDIR:
+      command = FILE_ACK_MKDIR;
+      if (dos_mkdir(g_file.filename)) {
+        status = FILE_ACK_ERROR;
+      }
+      break;
+
+    case FILE_OP_DELETE:
+      command = FILE_ACK_DELETE;
+      if (g_file.path_op_flags & FILE_PATH_OP_DIRECTORY) {
+        if (dos_rmdir(g_file.filename)) {
+          status = FILE_ACK_ERROR;
+        }
+      } else if (dos_unlink(g_file.filename)) {
+        status = FILE_ACK_ERROR;
+      }
+      break;
+
+    case FILE_OP_RENAME:
+      command = FILE_ACK_RENAME;
+      if (dos_path_equal(g_file.filename, g_file.target)) {
+        status = FILE_ACK_OK;
+      } else if (dos_rename(g_file.filename, g_file.target)) {
+        status = FILE_ACK_ERROR;
+      }
+      break;
+
+    case FILE_OP_COPY: {
+      uint32_t bytes_copied = 0;
+      command = FILE_ACK_COPY;
+      if (dos_path_equal(g_file.filename, g_file.target) ||
+          dos_copy_file(g_file.filename, g_file.target, &bytes_copied)) {
+        status = FILE_ACK_ERROR;
+      }
+      g_file.expected_offset = bytes_copied;
+    } break;
   }
 
   ack_offset = g_file.expected_offset;

@@ -213,21 +213,35 @@ _x86_read_bios_tick_clock:
     mov     ax, #$0040
     mov     ds, ax
     mov     bl, [$17]              ; Preserve keyboard flag byte #0.
+    mov     bh, [$18]              ; Preserve keyboard flag byte #1.
     mov     cx, [bp + 8]           ; CX = flags_17
     and     cl, #$0f               ; Ensure that we only have the bottom nibble.
     mov     al, [$17]              ; AX = Keyboard flag byte #0
     and     al, #$f0               ; Keep the upper nibble.
     or      al, cl                 ; Compose new keyboard flags byte.
-  mov     [$17], al
+    mov     [$17], al
 
-  mov     ax, [bp + 4]           ; AX = bios_scan_code (need in CH)
-  mov     cx, [bp + 6]           ; CX = ascii_value (need in CL)
-  mov     ch, al
+    mov     ah, [$18]              ; Extended keyboard flag byte.
+    and     ah, #$fc               ; Keep non-left-CTRL/ALT state.
+    test    cl, #$04
+    jz      no_left_ctrl
+    or      ah, #$01               ; Left CTRL pressed.
+no_left_ctrl:
+    test    cl, #$08
+    jz      no_left_alt
+    or      ah, #$02               ; Left ALT pressed.
+no_left_alt:
+    mov     [$18], ah
+
+    mov     ax, [bp + 4]           ; AX = bios_scan_code (need in CH)
+    mov     cx, [bp + 6]           ; CX = ascii_value (need in CL)
+    mov     ch, al
 
     mov     ax, #$0500             ; http://www.ctyme.com/intr/rb-1761.htm
     int     $16                    ; AL = 0 on success, 1 on fail.
   
     mov     [$17], bl              ; Do not leave CTRL/ALT/SHIFT stuck on.
+    mov     [$18], bh
     and     ax, #1
     xor     ax, #1
   

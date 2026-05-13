@@ -98,7 +98,7 @@ int unload_other_tsr() {
 }
 
 void print_usage(const char *prog) {
-  printf("Usage: %s [-b #] [-d] [-e type] [-i irq#] [-u]\n", prog);
+  printf("Usage: %s [-b #] [-d] [-e type] [-i irq#] [-u] [-v]\n", prog);
   printf("  -b  Count of Ethernet receive buffers (decimal).\n");
 #if DEBUG
   printf("  -d  Show debug overlay.\n");
@@ -106,6 +106,7 @@ void print_usage(const char *prog) {
   printf("  -e  Override EtherType (4 hex digits).\n");
   printf("  -i  IRQ for packet driver.  Omit to auto-probe. (decimal)\n");
   printf("  -u  Uninstall resident TSR.\n");
+  printf("  -v  Show version and exit.\n");
 }
 
 int main(int argc, char *argv[]) {
@@ -121,7 +122,7 @@ int main(int argc, char *argv[]) {
   void *keep_ptr = NULL;
   struct VideoState video_state;
 
-  while (-1 != (opt = getopt(argv, argv, "b:de:hi:u"))) {
+  while (-1 != (opt = getopt(argv, argv, "b:de:hi:uv"))) {
     switch (opt) {
       case 'b':
         buffers = atoi(optarg);
@@ -149,6 +150,10 @@ int main(int argc, char *argv[]) {
       case 'u':
         unload = 1;
         break;
+
+      case 'v':
+        printf("%s\n", RMTDOS_VERSION);
+        return EXIT_SUCCESS;
 
       default:
         // Under "bcc", "argv[0]" is broken.  Instead of the program name,

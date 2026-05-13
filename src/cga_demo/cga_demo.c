@@ -5,6 +5,10 @@
 
 // Utility to test CGA graphics mode capture.
 
+#include <stdio.h>
+#include <string.h>
+
+#include "common/protocol.h"
 #include "lib16/types.h"
 #include "lib16/x86.h"
 
@@ -157,6 +161,11 @@ static uint16_t read_key() {
 int main(int argc, char *argv[]) {
   int running;
   uint16_t key;
+
+  if (argc > 1 && !strcmp(argv[1], "-v")) {
+    printf("cga_demo.com (%s)\n", RMTDOS_VERSION);
+    return 0;
+  }
 
   saved_es = __get_es();
   running = 1;

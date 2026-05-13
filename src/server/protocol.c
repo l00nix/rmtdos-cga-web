@@ -140,12 +140,6 @@ void handle_inject_keystroke(const struct Buffer *buffer) {
                in_keys->ascii_value, in_keys->flags_17);
 #endif
 
-    // We are inside an interrupt handler (either 08h or 28h).
-    // It is unclear if we can safely call the BIOS keyboard interrupt
-    // (int 16h, AH=05) directly at this time.  However, it seems to work in
-    // QEMU (SeaBIOS) w/ FreeDOS.  If this mechanic is problematic, then we'll
-    // need to insert the keystrokes into our own ring-buffer, then process
-    // that buffer during a safe time.
     x86_inject_keystroke(in_keys->bios_scan_code, in_keys->ascii_value,
                          in_keys->flags_17);
   }
@@ -190,6 +184,10 @@ void protocol_process() {
         case V1_DIR_LIST_BEGIN:
         case V1_DIR_LIST_DATA_REQ:
         case V1_DIR_LIST_END:
+        case V1_FILE_MKDIR:
+        case V1_FILE_DELETE:
+        case V1_FILE_RENAME:
+        case V1_FILE_COPY:
           file_transfer_handle_packet(buffer);
           break;
       }

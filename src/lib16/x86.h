@@ -101,10 +101,7 @@ extern void x86_dos_idle();
 // frequency is 18.2065 ticks/s, or 54.9254 ms.
 extern uint32_t x86_read_bios_tick_clock();
 
-// Calls BIOS int 16h, AH=05 to inject keystroke into BIOS keyboard buffer.
-// Will NOT work on an IBM PCJr.
-// http://www.ctyme.com/intr/rb-1761.htm (AH=05 for most BIOSes)
-// http://www.ctyme.com/intr/rb-1762.htm (AH=05 for PC Jr)
+// Injects a keystroke directly into the BIOS keyboard buffer.
 // Returns 1 if successful, 0 if buffer is full.
 extern int x86_inject_keystroke(uint8_t bios_scan_code, uint8_t ascii_value,
                                 uint8_t flags_17);

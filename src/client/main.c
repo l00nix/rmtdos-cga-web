@@ -342,7 +342,7 @@ enum LongOption {
 };
 
 static void print_usage(const char *progname) {
-  printf("usage: %s [-d dest-addr] [-e type] [-h] [-i eth_dev] [-k] "
+  printf("usage: %s [-d dest-addr] [-e type] [-h] [-i eth_dev] [-k] [-v] "
          "[--put local remote] [--get remote local] [--key-test file] "
          "[-w] [-W addr[:port]]\n",
          progname);
@@ -353,6 +353,7 @@ static void print_usage(const char *progname) {
   printf("  -i  Name of local ethernet device (default: %s).\n",
          DEFAULT_ETH_DEV);
   printf("  -k  Dump keyboard layout to text file for debugging.\n");
+  printf("  -v  Show version and exit.\n");
   printf("  --key-test file  Log local terminal key codes without connecting.\n");
   printf("  --put local remote  Upload one file to the DOS current directory.\n");
   printf("  --get remote local  Download one file from the DOS current directory.\n");
@@ -434,7 +435,7 @@ int main(int argc, char **argv) {
   memcpy(dest_addr, broadcast_addr, ETH_ALEN);
   hostlist_create();
 
-  while ((opt = getopt_long(argc, argv, "d:e:hi:kwW:", long_options, NULL)) !=
+  while ((opt = getopt_long(argc, argv, "d:e:hi:kvwW:", long_options, NULL)) !=
          -1) {
     switch (opt) {
       case OPT_PUT:
@@ -477,6 +478,10 @@ int main(int argc, char **argv) {
 
       case 'k':
         dump_keyboard_table(stdout);
+        return EXIT_SUCCESS;
+
+      case 'v':
+        puts(RMTDOS_VERSION);
         return EXIT_SUCCESS;
 
       case 'w':

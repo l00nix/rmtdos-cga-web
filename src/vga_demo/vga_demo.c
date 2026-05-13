@@ -6,8 +6,11 @@
 // Utility to test VGA text mode capabilities.
 
 #include <bios.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
+#include "common/protocol.h"
 #include "lib16/vga.h"
 #include "lib16/x86.h"
 
@@ -193,6 +196,11 @@ void process_keyboard() {
 }
 
 int main(int argc, char *argv[]) {
+  if (argc > 1 && !strcmp(argv[1], "-v")) {
+    printf("vga_demo.com (%s)\n", RMTDOS_VERSION);
+    return 0;
+  }
+
   set_video_mode();
   prep_screen();
 

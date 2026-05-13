@@ -25,7 +25,7 @@
 #endif
 
 // Our version info, for display purposes.
-#define RMTDOS_VERSION "rmtdos-cga-web v0.4.3"
+#define RMTDOS_VERSION "rmtdos-cga-web v0.5.1"
 
 // 32-bit signature sent in every packet (network byte order).
 // Initially picked at random via `uuidgen`.  Has no meaning.
@@ -122,6 +122,22 @@ enum PKT_TYPE {
   // Client -> Server
   // Finish directory listing.
   V1_DIR_LIST_END = 20,
+
+  // Client -> Server
+  // Create one DOS directory.
+  V1_FILE_MKDIR = 21,
+
+  // Client -> Server
+  // Delete one DOS file or empty directory.
+  V1_FILE_DELETE = 22,
+
+  // Client -> Server
+  // Rename or move one DOS file or directory.
+  V1_FILE_RENAME = 23,
+
+  // Client -> Server
+  // Copy one DOS file on the remote machine.
+  V1_FILE_COPY = 24,
 };
 
 #if NEED_PRAGMA_PACK
@@ -201,6 +217,10 @@ enum FILE_ACK_COMMAND {
   FILE_ACK_BEGIN = 1,
   FILE_ACK_DATA = 2,
   FILE_ACK_END = 3,
+  FILE_ACK_MKDIR = 4,
+  FILE_ACK_DELETE = 5,
+  FILE_ACK_RENAME = 6,
+  FILE_ACK_COPY = 7,
 };
 
 enum FILE_ACK_STATUS {
@@ -263,6 +283,23 @@ struct FileAck {
   uint16_t command;     // FILE_ACK_COMMAND, network byte order
   uint16_t status;      // FILE_ACK_STATUS, network byte order
   uint32_t offset;      // next expected offset, network byte order
+};
+
+enum FILE_PATH_OP_FLAGS {
+  FILE_PATH_OP_DIRECTORY = 0x0001,
+};
+
+struct FilePathOp {
+  uint32_t transfer_id; // network byte order
+  uint16_t flags;       // FILE_PATH_OP_FLAGS, network byte order
+  uint16_t reserved;
+  char path[FILE_TRANSFER_NAME_BYTES];
+};
+
+struct FileTwoPathOp {
+  uint32_t transfer_id; // network byte order
+  char source[FILE_TRANSFER_NAME_BYTES];
+  char target[FILE_TRANSFER_NAME_BYTES];
 };
 
 #define RMTDOS_PATH_BYTES 128
